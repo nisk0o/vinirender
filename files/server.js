@@ -38,6 +38,63 @@ function verifyPassword(plain, salt, hash) {
 }
 
 // ------------------------------------------------------------
+// Login con Google ("Sign In With Google"). No usamos ninguna
+// librería: el botón de Google nos da un JWT firmado (el
+// "credential") y aquí lo verificamos a mano con las claves
+// públicas de Google (JWKS) usando el módulo nativo "crypto".
+// Solo hace falta el GOOGLE_CLIENT_ID (no es secreto, es público).
+// ------------------------------------------------------------
+let googleJwksCache = { keys: [], fetchedAt: 0 };
+async function getGoogleJwks(forceRefresh) {
+  const now = Date.now();
+  if (!forceRefresh && googleJwksCache.keys.length && (now - googleJwksCache.fetchedAt) < 6 * 60 * 60 * 1000) {
+    return googleJwksCache.keys;
+  }
+  const resp = await fetch('https://www.googleapis.com/oauth2/v3/certs');
+  if (!resp.ok) throw new Error('No se pudieron obtener las claves públicas de Google.');
+  const data = await resp.json();
+  googleJwksCache = { keys: data.keys || [], fetchedAt: now };
+  return googleJwksCache.keys;
+}
+function base64urlToBuffer(str) {
+  str = String(str || '').replace(/-/g, '+').replace(/_/g, '/');
+  while (str.length % 4) str += '=';
+  return Buffer.from(str, 'base64');
+}
+async function verifyGoogleIdToken(credential) {
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  if (!clientId) { const e = new Error('GOOGLE_NOT_CONFIGURED'); throw e; }
+
+  const parts = String(credential || '').split('.');
+  if (parts.length !== 3) throw new Error('TOKEN_INVALIDO');
+  const [headerB64, payloadB64, sigB64] = parts;
+
+  let header, payload;
+  try {
+    header = JSON.parse(base64urlToBuffer(headerB64).toString('utf8'));
+    payload = JSON.parse(base64urlToBuffer(payloadB64).toString('utf8'));
+  } catch (e) { throw new Error('TOKEN_INVALIDO'); }
+  if (header.alg !== 'RS256') throw new Error('TOKEN_INVALIDO');
+
+  let keys = await getGoogleJwks();
+  let jwk = keys.find(k => k.kid === header.kid);
+  if (!jwk) { keys = await getGoogleJwks(true); jwk = keys.find(k => k.kid === header.kid); }
+  if (!jwk) throw new Error('TOKEN_INVALIDO');
+
+  const publicKey = crypto.createPublicKey({ key: jwk, format: 'jwk' });
+  const valid = crypto.verify('RSA-SHA256', Buffer.from(`${headerB64}.${payloadB64}`), publicKey, base64urlToBuffer(sigB64));
+  if (!valid) throw new Error('FIRMA_INVALIDA');
+
+  const now = Math.floor(Date.now() / 1000);
+  if (!payload.exp || payload.exp < now) throw new Error('TOKEN_CADUCADO');
+  if (payload.iss !== 'accounts.google.com' && payload.iss !== 'https://accounts.google.com') throw new Error('EMISOR_INVALIDO');
+  if (payload.aud !== clientId) throw new Error('AUD_INVALIDO');
+  if (!payload.email || payload.email_verified !== true) throw new Error('EMAIL_NO_VERIFICADO');
+
+  return payload; // incluye email, name, picture...
+}
+
+// ------------------------------------------------------------
 // Semilla inicial de usuarios (solo se inserta si la tabla
 // "users" está vacía, es decir, la primera vez que arrancas
 // contra un proyecto de Supabase nuevo).
@@ -73,17 +130,18 @@ async function ensureSeed() {
 function rowToUser(row) {
   return {
     username: row.username, alias: row.alias, role: row.role,
-    steamId: row.steam_id || '', avatar: row.avatar || null,
+    steamId: row.steam_id || '', email: row.email || '', avatar: row.avatar || null,
     salt: row.salt, hash: row.hash
   };
 }
 function publicUser(u) {
   if (!u) return null;
-  return { username: u.username, alias: u.alias, role: u.role, steamId: u.steamId || '', avatar: u.avatar || null };
+  return { username: u.username, alias: u.alias, role: u.role, steamId: u.steamId || '', email: u.email || '', avatar: u.avatar || null };
 }
 function rowToNote(row) { return { id: row.id, username: row.username, text: row.text, ts: Number(row.ts) }; }
 function rowToImage(row) { return { id: row.id, username: row.username, dataUrl: row.data_url, ts: Number(row.ts) }; }
 function rowToRaid(row) { return { id: row.id, structureId: row.structure_id, explosiveKey: row.explosive_key, qty: row.qty }; }
+function rowToEnemy(row) { return { id: row.id, serverId: row.server_id, name: row.name, steamId: row.steam_id || '', team: row.team || '', ts: Number(row.ts) }; }
 
 // ------------------------------------------------------------
 // Acceso a datos (todo a través de Supabase)
@@ -94,6 +152,12 @@ async function findUser(username) {
 }
 async function findUserCaseInsensitive(username) {
   const rows = await db.select('users', `select=*&username=ilike.${encodeURIComponent(username)}`);
+  return rows && rows[0] ? rowToUser(rows[0]) : null;
+}
+async function findUserByEmail(email) {
+  const clean = String(email || '').trim().toLowerCase();
+  if (!clean) return null;
+  const rows = await db.select('users', `select=*&email=eq.${encodeURIComponent(clean)}`);
   return rows && rows[0] ? rowToUser(rows[0]) : null;
 }
 async function allUsers() {
@@ -209,6 +273,11 @@ async function handleApi(req, res, pathname) {
     return true;
   }
 
+  // ---- CONFIG (pública, sin login: la usa la pantalla de login) ----
+  if (pathname === '/api/config' && method === 'GET') {
+    return sendJSON(res, 200, { googleClientId: process.env.GOOGLE_CLIENT_ID || null });
+  }
+
   // ---- AUTH ----
   if (pathname === '/api/auth/login' && method === 'POST') {
     let body;
@@ -230,6 +299,30 @@ async function handleApi(req, res, pathname) {
     if (cookies.session) sessions.delete(cookies.session);
     res.setHeader('Set-Cookie', 'session=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0');
     return sendJSON(res, 200, { ok: true });
+  }
+
+  if (pathname === '/api/auth/google' && method === 'POST') {
+    let body;
+    try { body = await readBody(req); } catch (e) { return sendJSON(res, 400, { error: 'Petición inválida.' }); }
+    let payload;
+    try {
+      payload = await verifyGoogleIdToken(body.credential);
+    } catch (e) {
+      if (e.message === 'GOOGLE_NOT_CONFIGURED') {
+        return sendJSON(res, 500, { error: 'El login con Google no está configurado en este servidor todavía.' });
+      }
+      return sendJSON(res, 401, { error: 'No se pudo verificar el inicio de sesión con Google.' });
+    }
+    const found = await findUserByEmail(payload.email);
+    if (!found) {
+      return sendJSON(res, 403, {
+        error: 'Ese email de Google (' + payload.email + ') no está vinculado a ningún miembro. Entra con tu usuario y contraseña, y añádelo en tu Taquilla.'
+      });
+    }
+    const token = crypto.randomBytes(32).toString('hex');
+    sessions.set(token, found.username);
+    res.setHeader('Set-Cookie', `session=${token}; HttpOnly; Path=/; SameSite=Lax; Max-Age=2592000`);
+    return sendJSON(res, 200, { user: publicUser(found) });
   }
 
   if (pathname === '/api/auth/me' && method === 'GET') {
@@ -265,18 +358,28 @@ async function handleApi(req, res, pathname) {
     const newUsername = String(body.username || '').trim();
     const newPassword = body.password ? String(body.password) : '';
     const newSteamId = String(body.steamId || '').trim();
+    const newEmail = String(body.email || '').trim().toLowerCase();
 
     if (!newAlias) return sendJSON(res, 400, { error: 'El alias no puede estar vacío.' });
     if (!newUsername) return sendJSON(res, 400, { error: 'El usuario no puede estar vacío.' });
     if (newSteamId && !/^\d{15,20}$/.test(newSteamId)) {
       return sendJSON(res, 400, { error: 'La SteamID64 debe tener entre 15 y 20 dígitos.' });
     }
+    if (newEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) {
+      return sendJSON(res, 400, { error: 'Ese email no parece válido.' });
+    }
     if (newUsername.toLowerCase() !== user.username.toLowerCase()) {
       const clash = await findUserCaseInsensitive(newUsername);
       if (clash) return sendJSON(res, 400, { error: 'Ese usuario ya lo tiene otro miembro.' });
     }
+    if (newEmail) {
+      const emailClash = await findUserByEmail(newEmail);
+      if (emailClash && emailClash.username.toLowerCase() !== user.username.toLowerCase()) {
+        return sendJSON(res, 400, { error: 'Ese email de Google ya lo tiene vinculado otro miembro.' });
+      }
+    }
 
-    const patch = { alias: newAlias, steam_id: newSteamId };
+    const patch = { alias: newAlias, steam_id: newSteamId, email: newEmail || null };
     if (typeof body.avatar === 'string') patch.avatar = body.avatar || null;
     if (newPassword) {
       const { salt, hash } = hashPassword(newPassword);
@@ -296,6 +399,7 @@ async function handleApi(req, res, pathname) {
         alias: patch.alias,
         role: fresh.role,
         steam_id: patch.steam_id,
+        email: patch.email,
         avatar: 'avatar' in patch ? patch.avatar : fresh.avatar,
         salt: patch.salt || fresh.salt,
         hash: patch.hash || fresh.hash
@@ -351,6 +455,8 @@ async function handleApi(req, res, pathname) {
   }
 
   // ---- HALL OF FAME ----
+  // (endpoint mantenido por compatibilidad; la pestaña de la app se
+  // sustituyó por "Bases", pero los datos ya guardados no se tocan)
   if (pathname === '/api/hall' && method === 'GET') {
     if (!requireAuth()) return;
     const rows = await db.select('hall_images', 'select=*&order=ts.desc');
@@ -442,6 +548,58 @@ async function handleApi(req, res, pathname) {
     if (!requireAuth()) return;
     const id = Number(m[1]);
     await db.remove('raid_list', `id=eq.${id}`);
+    return sendJSON(res, 200, { ok: true });
+  }
+
+  // ---- ENEMIGOS (por servidor, agrupados por equipo) ----
+  if (pathname === '/api/enemies' && method === 'GET') {
+    if (!requireAuth()) return;
+    const rows = await db.select('enemies', 'select=*&order=team.asc,name.asc');
+    return sendJSON(res, 200, { enemies: rows.map(rowToEnemy) });
+  }
+  if (pathname === '/api/enemies' && method === 'POST') {
+    if (!requireAuth()) return;
+    let body;
+    try { body = await readBody(req); } catch (e) { return sendJSON(res, 400, { error: 'Petición inválida.' }); }
+    const serverId = String(body.serverId || '').trim();
+    const name = String(body.name || '').trim();
+    const steamId = String(body.steamId || '').trim();
+    const team = String(body.team || '').trim();
+    if (!serverId) return sendJSON(res, 400, { error: 'Falta el servidor.' });
+    if (!name) return sendJSON(res, 400, { error: 'El nombre del enemigo no puede estar vacío.' });
+    if (steamId && !/^\d{15,20}$/.test(steamId)) {
+      return sendJSON(res, 400, { error: 'La SteamID64 debe tener entre 15 y 20 dígitos.' });
+    }
+    const rows = await db.insert('enemies', { server_id: serverId, name, steam_id: steamId, team, ts: Date.now() });
+    return sendJSON(res, 201, { enemy: rowToEnemy(rows[0]) });
+  }
+  if ((m = pathname.match(/^\/api\/enemies\/(\d+)$/)) && method === 'PATCH') {
+    if (!requireAuth()) return;
+    let body;
+    try { body = await readBody(req); } catch (e) { return sendJSON(res, 400, { error: 'Petición inválida.' }); }
+    const patch = {};
+    if (typeof body.name === 'string') {
+      const name = body.name.trim();
+      if (!name) return sendJSON(res, 400, { error: 'El nombre del enemigo no puede estar vacío.' });
+      patch.name = name;
+    }
+    if (typeof body.steamId === 'string') {
+      const steamId = body.steamId.trim();
+      if (steamId && !/^\d{15,20}$/.test(steamId)) {
+        return sendJSON(res, 400, { error: 'La SteamID64 debe tener entre 15 y 20 dígitos.' });
+      }
+      patch.steam_id = steamId;
+    }
+    if (typeof body.team === 'string') patch.team = body.team.trim();
+    const id = Number(m[1]);
+    const rows = await db.update('enemies', `id=eq.${id}`, patch);
+    if (!rows || !rows[0]) return sendJSON(res, 404, { error: 'Enemigo no encontrado.' });
+    return sendJSON(res, 200, { enemy: rowToEnemy(rows[0]) });
+  }
+  if ((m = pathname.match(/^\/api\/enemies\/(\d+)$/)) && method === 'DELETE') {
+    if (!requireAuth()) return;
+    const id = Number(m[1]);
+    await db.remove('enemies', `id=eq.${id}`);
     return sendJSON(res, 200, { ok: true });
   }
 

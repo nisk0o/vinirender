@@ -61,9 +61,9 @@ var errorBox = document.getElementById('login-error');
 var currentUser = null;
 var USERS = [];
 var boardNotes = [];
-var hallImages = [];
 var wipeSignups = {};
 var raidList = [];
+var enemiesList = [];
 
 /* ============================================================
    MIEMBROS
@@ -284,112 +284,6 @@ function setupBoard() {
 }
 
 /* ============================================================
-   HALL OF FAME
-   ============================================================ */
-async function fetchHall() {
-  var data = await api('/hall');
-  hallImages = data.images;
-}
-
-function renderHall() {
-  var grid = document.getElementById('hall-grid');
-  if (!grid) return;
-  grid.innerHTML = '';
-
-  if (!hallImages.length) {
-    var empty = document.createElement('div');
-    empty.className = 'hall-empty';
-    empty.textContent = 'Todavía no hay imágenes. ¡Sube la primera!';
-    grid.appendChild(empty);
-    return;
-  }
-
-  var sorted = hallImages.slice().sort(function(a,b){ return b.ts - a.ts; });
-  sorted.forEach(function(img){
-    var author = USERS.find(function(u){ return u.username === img.username; });
-
-    var card = document.createElement('div');
-    card.className = 'hall-card';
-
-    var el = document.createElement('img');
-    el.src = img.dataUrl;
-    el.alt = author ? ('Subida por ' + author.alias) : 'Imagen';
-    card.appendChild(el);
-
-    var caption = document.createElement('div');
-    caption.className = 'hall-card-caption';
-    caption.textContent = author ? author.alias : '—';
-    card.appendChild(caption);
-
-    card.addEventListener('click', function(){ openHallLightbox(img.id); });
-    grid.appendChild(card);
-  });
-}
-
-function openHallLightbox(id) {
-  var img = hallImages.find(function(i){ return i.id === id; });
-  if (!img) return;
-  var author = USERS.find(function(u){ return u.username === img.username; });
-
-  document.getElementById('hall-lightbox-img').src = img.dataUrl;
-  document.getElementById('hall-lightbox-caption').textContent =
-    (author ? author.alias : '—') + ' · ' + fmtNoteTime(img.ts);
-
-  var delBtn = document.getElementById('hall-lightbox-delete');
-  var canDelete = currentUser && (currentUser.username === img.username || isGru(currentUser));
-  delBtn.classList.toggle('is-hidden', !canDelete);
-  delBtn.onclick = function(){ deleteHallImage(id); };
-
-  document.getElementById('hall-lightbox-overlay').classList.add('visible');
-}
-
-function closeHallLightbox() {
-  document.getElementById('hall-lightbox-overlay').classList.remove('visible');
-  document.getElementById('hall-lightbox-img').src = '';
-}
-
-async function deleteHallImage(id) {
-  try {
-    await api('/hall/' + id, { method: 'DELETE' });
-  } catch (e) { alert(e.message); return; }
-  closeHallLightbox();
-  await fetchHall();
-  renderHall();
-}
-
-function setupHall() {
-  var hallInput = document.getElementById('hall-input');
-  document.getElementById('hall-upload-btn').addEventListener('click', function(){
-    hallInput.click();
-  });
-  hallInput.addEventListener('change', function(e){
-    if (!currentUser) return;
-    var files = Array.prototype.slice.call(e.target.files || []);
-    var readers = files.filter(function(f){ return f.type.startsWith('image/'); }).map(function(file){
-      return new Promise(function(resolve){
-        var reader = new FileReader();
-        reader.onload = function(ev){ resolve(ev.target.result); };
-        reader.readAsDataURL(file);
-      });
-    });
-    Promise.all(readers).then(async function(dataUrls){
-      if (!dataUrls.length) return;
-      try {
-        await api('/hall', { method: 'POST', body: { images: dataUrls } });
-      } catch (err) { alert(err.message); return; }
-      await fetchHall();
-      renderHall();
-    });
-    hallInput.value = '';
-  });
-
-  document.getElementById('hall-lightbox-close').addEventListener('click', closeHallLightbox);
-  document.getElementById('hall-lightbox-overlay').addEventListener('click', function(e){
-    if (e.target === this) closeHallLightbox();
-  });
-}
-
-/* ============================================================
    ESTADÍSTICAS POR SERVIDOR (placeholders, sin fuente real todavía)
    ============================================================ */
 var SERVERS = [
@@ -488,6 +382,248 @@ function renderStatsPanel() {
 function setupStats() {
   renderStatsServerPicker();
   renderStatsPanel();
+}
+
+/* ============================================================
+   ENEMIGOS — por servidor, agrupados por equipo
+   (persistidos en el servidor; sin fuente externa todavía)
+   ============================================================ */
+var enemiesSelectedServerId = SERVERS[0].id;
+
+async function fetchEnemies() {
+  var data = await api('/enemies');
+  enemiesList = data.enemies;
+}
+
+function renderEnemiesServerPicker() {
+  var picker = document.getElementById('enemies-server-picker');
+  if (!picker) return;
+  picker.innerHTML = '';
+  SERVERS.forEach(function(s){
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'stats-server-btn' + (s.id === enemiesSelectedServerId ? ' active' : '');
+    var community = document.createElement('span');
+    community.className = 'stats-server-community';
+    community.textContent = s.platform;
+    var name = document.createElement('span');
+    name.className = 'stats-server-name';
+    name.textContent = s.name;
+    btn.appendChild(community);
+    btn.appendChild(name);
+    btn.addEventListener('click', function(){
+      enemiesSelectedServerId = s.id;
+      renderEnemiesServerPicker();
+      renderEnemyTeamSelect();
+      renderEnemiesPanel();
+    });
+    picker.appendChild(btn);
+  });
+}
+
+function enemiesForServer() {
+  return enemiesList.filter(function(e){ return e.serverId === enemiesSelectedServerId; });
+}
+
+function enemyTeams() {
+  var teams = [];
+  enemiesForServer().forEach(function(e){
+    var t = e.team || '';
+    if (t && teams.indexOf(t) === -1) teams.push(t);
+  });
+  teams.sort(function(a,b){ return a.localeCompare(b); });
+  return teams;
+}
+
+function renderEnemyTeamSelect() {
+  var select = document.getElementById('enemy-team-select');
+  if (!select) return;
+  var prevValue = select.value;
+  select.innerHTML = '';
+
+  var noneOpt = document.createElement('option');
+  noneOpt.value = '';
+  noneOpt.textContent = 'Sin equipo';
+  select.appendChild(noneOpt);
+
+  enemyTeams().forEach(function(t){
+    var opt = document.createElement('option');
+    opt.value = t;
+    opt.textContent = t;
+    select.appendChild(opt);
+  });
+
+  var newOpt = document.createElement('option');
+  newOpt.value = '__new__';
+  newOpt.textContent = '➕ Nuevo equipo…';
+  select.appendChild(newOpt);
+
+  var values = Array.prototype.map.call(select.options, function(o){ return o.value; });
+  if (values.indexOf(prevValue) !== -1) select.value = prevValue;
+
+  toggleNewTeamField();
+}
+
+function toggleNewTeamField() {
+  var select = document.getElementById('enemy-team-select');
+  var field = document.getElementById('enemy-newteam-field');
+  if (!select || !field) return;
+  field.classList.toggle('is-hidden', select.value !== '__new__');
+}
+
+function makeEnemyTeamSelect(currentTeam, onChange) {
+  var select = document.createElement('select');
+  select.className = 'enemy-card-team-select';
+
+  var noneOpt = document.createElement('option');
+  noneOpt.value = '';
+  noneOpt.textContent = 'Sin equipo';
+  if (!currentTeam) noneOpt.selected = true;
+  select.appendChild(noneOpt);
+
+  enemyTeams().forEach(function(t){
+    var opt = document.createElement('option');
+    opt.value = t;
+    opt.textContent = t;
+    if (t === currentTeam) opt.selected = true;
+    select.appendChild(opt);
+  });
+
+  select.addEventListener('change', function(){ onChange(select.value); });
+  return select;
+}
+
+function renderEnemiesPanel() {
+  var panel = document.getElementById('enemy-list');
+  if (!panel) return;
+  panel.innerHTML = '';
+
+  var server = SERVERS.find(function(s){ return s.id === enemiesSelectedServerId; }) || SERVERS[0];
+
+  var head = document.createElement('div');
+  head.className = 'stats-panel-head';
+  var title = document.createElement('div');
+  title.className = 'stats-panel-title';
+  title.textContent = server.platform + ' · ' + server.name;
+  head.appendChild(title);
+  panel.appendChild(head);
+
+  var list = enemiesForServer();
+  if (!list.length) {
+    var empty = document.createElement('div');
+    empty.className = 'enemy-empty';
+    empty.textContent = 'Todavía no hay enemigos apuntados en este servidor. ¡Añade el primero arriba!';
+    panel.appendChild(empty);
+    return;
+  }
+
+  var teams = enemyTeams().concat(['']);
+  teams.forEach(function(team){
+    var teamEnemies = list.filter(function(e){ return (e.team || '') === team; })
+                           .sort(function(a,b){ return a.name.localeCompare(b.name); });
+    if (!teamEnemies.length) return;
+
+    var group = document.createElement('div');
+    group.className = 'enemy-team-group';
+
+    var groupHead = document.createElement('div');
+    groupHead.className = 'enemy-team-head';
+    groupHead.textContent = team === '' ? '🎯 Sin equipo' : '⚔️ ' + team;
+    group.appendChild(groupHead);
+
+    var grid = document.createElement('div');
+    grid.className = 'enemy-cards-grid';
+
+    teamEnemies.forEach(function(en){
+      var card = document.createElement('div');
+      card.className = 'enemy-card';
+
+      var name = document.createElement('div');
+      name.className = 'enemy-card-name';
+      name.textContent = en.name;
+
+      var steam = document.createElement('div');
+      steam.className = 'enemy-card-steam';
+      steam.textContent = en.steamId ? en.steamId : 'Sin SteamID';
+
+      var actions = document.createElement('div');
+      actions.className = 'enemy-card-actions';
+
+      var teamSelect = makeEnemyTeamSelect(en.team, async function(newTeam){
+        try {
+          await api('/enemies/' + en.id, { method: 'PATCH', body: { team: newTeam } });
+        } catch (err) { alert(err.message); return; }
+        await fetchEnemies();
+        renderEnemyTeamSelect();
+        renderEnemiesPanel();
+      });
+
+      var delBtn = document.createElement('button');
+      delBtn.className = 'enemy-card-delete';
+      delBtn.type = 'button';
+      delBtn.title = 'Eliminar enemigo';
+      delBtn.setAttribute('aria-label', 'Eliminar enemigo');
+      delBtn.textContent = '✕';
+      delBtn.addEventListener('click', async function(){
+        try {
+          await api('/enemies/' + en.id, { method: 'DELETE' });
+        } catch (err) { alert(err.message); return; }
+        await fetchEnemies();
+        renderEnemyTeamSelect();
+        renderEnemiesPanel();
+      });
+
+      actions.appendChild(teamSelect);
+      actions.appendChild(delBtn);
+
+      card.appendChild(name);
+      card.appendChild(steam);
+      card.appendChild(actions);
+      grid.appendChild(card);
+    });
+
+    group.appendChild(grid);
+    panel.appendChild(group);
+  });
+}
+
+function setupEnemies() {
+  renderEnemiesServerPicker();
+  renderEnemyTeamSelect();
+  renderEnemiesPanel();
+
+  document.getElementById('enemy-team-select').addEventListener('change', toggleNewTeamField);
+
+  document.getElementById('enemy-add-form-el').addEventListener('submit', async function(e){
+    e.preventDefault();
+    var nameInput = document.getElementById('enemy-name-input');
+    var steamInput = document.getElementById('enemy-steamid-input');
+    var teamSelect = document.getElementById('enemy-team-select');
+    var newTeamInput = document.getElementById('enemy-newteam-input');
+
+    var name = nameInput.value.trim();
+    if (!name) return;
+    var steamId = steamInput.value.trim();
+    if (steamId && !/^\d{15,20}$/.test(steamId)) {
+      alert('La SteamID64 debe ser un número de entre 15 y 20 dígitos. Puedes dejarla vacía si no la tienes a mano.');
+      return;
+    }
+
+    var team = teamSelect.value === '__new__' ? newTeamInput.value.trim() : teamSelect.value;
+
+    try {
+      await api('/enemies', { method: 'POST', body: {
+        serverId: enemiesSelectedServerId, name: name, steamId: steamId, team: team
+      } });
+    } catch (err) { alert(err.message); return; }
+
+    nameInput.value = '';
+    steamInput.value = '';
+    newTeamInput.value = '';
+    await fetchEnemies();
+    renderEnemyTeamSelect();
+    renderEnemiesPanel();
+  });
 }
 
 /* ============================================================
@@ -934,6 +1070,7 @@ function renderLocker() {
   document.getElementById('edit-username').value = currentUser.username;
   document.getElementById('edit-password').value = '';
   document.getElementById('edit-steamid').value = currentUser.steamId || '';
+  document.getElementById('edit-email').value = currentUser.email || '';
 }
 
 function setupLocker() {
@@ -948,7 +1085,7 @@ function setupLocker() {
     reader.onload = async function(ev){
       try {
         await api('/users/me', { method: 'PATCH', body: {
-          alias: currentUser.alias, username: currentUser.username, steamId: currentUser.steamId || '', avatar: ev.target.result
+          alias: currentUser.alias, username: currentUser.username, steamId: currentUser.steamId || '', email: currentUser.email || '', avatar: ev.target.result
         } });
       } catch (err) { alert(err.message); return; }
       currentUser.avatar = ev.target.result;
@@ -964,6 +1101,7 @@ function setupLocker() {
     var newUsername = document.getElementById('edit-username').value.trim();
     var newPassword = document.getElementById('edit-password').value;
     var newSteamId = document.getElementById('edit-steamid').value.trim();
+    var newEmail = document.getElementById('edit-email').value.trim();
 
     if (!newAlias) { alert('El alias no puede estar vacío.'); return; }
     if (!newUsername) { alert('El usuario no puede estar vacío.'); return; }
@@ -971,8 +1109,12 @@ function setupLocker() {
       alert('La SteamID64 debe ser un número de entre 15 y 20 dígitos (ej: 76561198012345678). Puedes dejarla vacía si no la tienes a mano.');
       return;
     }
+    if (newEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) {
+      alert('Ese email no parece válido.');
+      return;
+    }
 
-    var body = { alias: newAlias, username: newUsername, steamId: newSteamId };
+    var body = { alias: newAlias, username: newUsername, steamId: newSteamId, email: newEmail };
     if (newPassword) body.password = newPassword;
 
     try {
@@ -1010,8 +1152,8 @@ function setupNav() {
       if (view === 'taquilla') renderLocker();
       if (view === 'zerg') renderOrgchart();
       if (view === 'wipes') { wipeWeekOffset = 0; await fetchWipeSignups(); renderWipes(); }
-      if (view === 'hall') { await fetchHall(); renderHall(); }
       if (view === 'stats') renderStatsPanel();
+      if (view === 'enemigos') { await fetchEnemies(); renderEnemyTeamSelect(); renderEnemiesPanel(); }
       if (view === 'raidcalc') { await fetchRaid(); renderRaidCompare(); renderRaidList(); }
       if (view === 'roles') refreshWheelsIfIdle();
     });
@@ -1447,12 +1589,50 @@ document.getElementById('logout-btn').addEventListener('click', async function()
   backToLogin();
 });
 
+/* ---- Login con Google (opcional: solo aparece si el servidor tiene GOOGLE_CLIENT_ID) ---- */
+function loadGoogleScript(cb) {
+  if (window.google && google.accounts && google.accounts.id) { cb(); return; }
+  var s = document.createElement('script');
+  s.src = 'https://accounts.google.com/gsi/client';
+  s.async = true;
+  s.defer = true;
+  s.onload = cb;
+  s.onerror = function () { /* bloqueado o sin red: simplemente no aparece el botón */ };
+  document.head.appendChild(s);
+}
+
+async function onGoogleCredential(response) {
+  errorBox.classList.remove('visible');
+  try {
+    var data = await api('/auth/google', { method: 'POST', body: { credential: response.credential } });
+    await showApp(data.user);
+  } catch (err) {
+    errorBox.textContent = err.message || 'No se pudo iniciar sesión con Google.';
+    errorBox.classList.add('visible');
+  }
+}
+
+function setupGoogleLogin() {
+  api('/config').then(function (cfg) {
+    if (!cfg || !cfg.googleClientId) return;
+    loadGoogleScript(function () {
+      if (!window.google || !google.accounts || !google.accounts.id) return;
+      google.accounts.id.initialize({ client_id: cfg.googleClientId, callback: onGoogleCredential });
+      google.accounts.id.renderButton(document.getElementById('google-signin-container'), {
+        theme: 'filled_black', size: 'large', shape: 'pill', text: 'signin_with', width: 320
+      });
+      document.getElementById('google-login-wrap').classList.remove('is-hidden');
+    });
+  }).catch(function () { /* si falla, se queda solo el login normal */ });
+}
+
+setupGoogleLogin();
 setupNav();
 setupLocker();
 setupRoleModal();
 setupBoard();
-setupHall();
 setupStats();
+setupEnemies();
 setupRaidCalc();
 setupRoles();
 

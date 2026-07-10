@@ -70,6 +70,9 @@ abajo).
 5. En la sección **Environment**, añade las variables:
    - `SUPABASE_URL` = tu Project URL de Supabase
    - `SUPABASE_SERVICE_KEY` = tu service_role key de Supabase
+   - `GOOGLE_CLIENT_ID` = (opcional) el Client ID de Google si quieres
+     activar el botón "Entrar con Google" — ver sección siguiente.
+     Si no la pones, la app funciona igual, solo que sin ese botón.
 6. Dale a **Create Web Service**. Render te dará una URL pública tipo
    `https://vinicus-y-amigos.onrender.com` — esa es la que compartes
    con la Zerg.
@@ -77,6 +80,46 @@ abajo).
 Cada vez que hagas `git push` con cambios, Render vuelve a desplegar
 solo. Así que para "añadir funcionalidades" el flujo es: editar
 código → subir a GitHub → Render lo actualiza en ~1 minuto.
+
+---
+
+## 3bis. Activar el login con Google (opcional)
+
+El login normal (usuario + contraseña) sigue funcionando siempre.
+Esto añade un botón "Entrar con Google" **además**, solo para quien
+ya tenga una cuenta en la app y le haya vinculado su email.
+
+1. Entra en **[Google Cloud Console](https://console.cloud.google.com/)**
+   con tu cuenta de Google (no hace falta tarjeta ni pagar nada).
+2. Crea un proyecto nuevo (arriba a la izquierda, "Nuevo proyecto"),
+   ponle el nombre que quieras, p. ej. "Vinicus y Amigos".
+3. Ve a **APIs y servicios → Pantalla de consentimiento OAuth**.
+   - Tipo de usuario: **Externo**.
+   - Rellena nombre de la app, tu email de soporte y el de contacto.
+   - En "Público": déjalo en modo **Prueba** y añade como
+     "Usuarios de prueba" los emails de Gmail de los 9 miembros —
+     así Google no pide revisión y solo vosotros podéis usarlo.
+4. Ve a **APIs y servicios → Credenciales → Crear credenciales →
+   ID de cliente de OAuth**.
+   - Tipo de aplicación: **Aplicación web**.
+   - En "Orígenes de JavaScript autorizados" añade la URL de tu app,
+     tal cual, sin barra al final: `https://vinicus-y-amigos.onrender.com`
+     (y si pruebas en local: `http://localhost:3000`).
+   - No hace falta rellenar "URI de redireccionamiento".
+   - Dale a **Crear**. Te da un **Client ID** (termina en
+     `.apps.googleusercontent.com`) — cópialo, es lo único que
+     necesitas, no hay "secreto" que guardar.
+5. En Render, añade la variable de entorno `GOOGLE_CLIENT_ID` con
+   ese valor (o en tu `.env` local si pruebas en tu ordenador) y
+   redespliega.
+6. Ejecuta en el SQL Editor de Supabase la línea nueva de
+   `db/schema.sql` (`alter table users add column if not exists
+   email text;` y el índice único de debajo) si tu proyecto ya
+   existía de antes — así no pierdes ningún dato.
+7. Cada persona entra normal con usuario/contraseña, va a su
+   **Taquilla → Acceso con Google** y pone ahí el email de la
+   cuenta de Google con la que quiere entrar. A partir de ese
+   momento le aparecerá el botón de Google en el login.
 
 ---
 

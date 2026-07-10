@@ -13,10 +13,23 @@ create table if not exists users (
   alias       text not null,
   role        text not null default 'Minion menaje',
   steam_id    text default '',
+  email       text,
   avatar      text,
   salt        text not null,
   hash        text not null
 );
+
+-- Si tu tabla "users" ya existía de antes (proyecto ya desplegado),
+-- la línea de arriba no la toca. Ejecuta esta también (es segura,
+-- no hace nada si la columna ya existe) para añadir el email sin
+-- perder ningún dato:
+alter table users add column if not exists email text;
+
+-- Evita que dos miembros vinculen el mismo email de Google (ignora
+-- mayúsculas/minúsculas y a los que todavía no tienen email puesto).
+create unique index if not exists users_email_unique_idx
+  on users (lower(email))
+  where email is not null and email <> '';
 
 create table if not exists board_notes (
   id       bigint generated always as identity primary key,
@@ -45,6 +58,15 @@ create table if not exists raid_list (
   qty            int  not null default 1
 );
 
+create table if not exists enemies (
+  id         bigint generated always as identity primary key,
+  server_id  text not null,
+  name       text not null,
+  steam_id   text default '',
+  team       text default '',
+  ts         bigint not null
+);
+
 -- Row Level Security: la app solo habla con Supabase desde el
 -- backend Node usando la service_role key, que se salta RLS por
 -- diseño. Aun así dejamos RLS activada y sin políticas públicas,
@@ -55,3 +77,4 @@ alter table board_notes  enable row level security;
 alter table hall_images  enable row level security;
 alter table wipe_signups enable row level security;
 alter table raid_list    enable row level security;
+alter table enemies      enable row level security;
