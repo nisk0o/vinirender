@@ -194,7 +194,21 @@ async function fetchBoard() {
   boardNotes = data.notes;
 }
 
+function renderBoardComposerAvatar() {
+  var el = document.getElementById('board-form-avatar');
+  if (!el || !currentUser) return;
+  el.innerHTML = '';
+  if (currentUser.avatar) {
+    var img = document.createElement('img');
+    img.src = currentUser.avatar; img.alt = currentUser.alias;
+    el.appendChild(img);
+  } else {
+    el.textContent = initialsOf(currentUser.alias);
+  }
+}
+
 function renderBoard() {
+  renderBoardComposerAvatar();
   var list = document.getElementById('board-list');
   if (!list) return;
   list.innerHTML = '';
@@ -221,14 +235,30 @@ function renderBoard() {
 
     var authorEl = document.createElement('div');
     authorEl.className = 'board-note-author';
+    var noteAvatar = document.createElement('div');
+    noteAvatar.className = 'board-note-avatar';
+    if (author.avatar) {
+      var avImg = document.createElement('img');
+      avImg.src = author.avatar; avImg.alt = author.alias;
+      noteAvatar.appendChild(avImg);
+    } else {
+      noteAvatar.textContent = initialsOf(author.alias);
+    }
     var icon = document.createElement('span');
     icon.className = 'role-icon';
     icon.textContent = meta.icon;
+    authorEl.appendChild(noteAvatar);
     authorEl.appendChild(icon);
     authorEl.appendChild(document.createTextNode(author.alias));
 
     var metaWrap = document.createElement('div');
     metaWrap.className = 'board-note-meta';
+    if (Date.now() - note.ts < 10 * 60 * 1000) {
+      var newBadge = document.createElement('span');
+      newBadge.className = 'board-note-new';
+      newBadge.textContent = 'Nuevo';
+      metaWrap.appendChild(newBadge);
+    }
     var time = document.createElement('span');
     time.className = 'board-note-time';
     time.textContent = fmtNoteTime(note.ts);
@@ -268,16 +298,26 @@ async function deleteBoardNote(id) {
 }
 
 function setupBoard() {
+  var input = document.getElementById('board-input');
+  var counter = document.getElementById('board-char-count');
+  function updateCounter() {
+    var remaining = 280 - input.value.length;
+    counter.textContent = remaining;
+    counter.classList.toggle('is-low', remaining <= 30);
+  }
+  input.addEventListener('input', updateCounter);
+  updateCounter();
+
   document.getElementById('board-form').addEventListener('submit', async function(e){
     e.preventDefault();
     if (!currentUser) return;
-    var input = document.getElementById('board-input');
     var text = input.value.trim();
     if (!text) return;
     try {
       await api('/board', { method: 'POST', body: { text: text } });
     } catch (err) { alert(err.message); return; }
     input.value = '';
+    updateCounter();
     await fetchBoard();
     renderBoard();
   });
@@ -867,11 +907,11 @@ function setupRaidCalc() {
    RULETA DE ROLES (solo cliente, no necesita backend)
    ============================================================ */
 var ROLE_WHEELS = [
-  { id: 'constructor',  label: 'Constructor',  icon: '🔨' },
-  { id: 'electricista', label: 'Electricista', icon: '⚡' },
-  { id: 'huertista',    label: 'Huertista',    icon: '🌱' }
+  { id: 'constructor',  label: 'Constructor',  icon: '🔨', accent: '#e6007e' },
+  { id: 'electricista', label: 'Electricista', icon: '⚡', accent: '#ffd400' },
+  { id: 'huertista',    label: 'Huertista',    icon: '🌱', accent: '#4c9a4c' }
 ];
-var WHEEL_COLORS = ['#e6007e', '#c2410c', '#ffd400', '#166534', '#0f766e', '#7c3aed', '#b91c1c', '#0369a1', '#a16207', '#4b5563'];
+var WHEEL_COLORS = ['#e6007e', '#ffd400', '#b6132f', '#c98a2b', '#9e0057', '#ffb347', '#6b1650', '#8a5a3a'];
 var wheelState = {};
 var SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -920,7 +960,11 @@ function drawWheelSlices(roleId) {
     text.setAttribute('x', labelPos.x);
     text.setAttribute('y', labelPos.y);
     text.setAttribute('fill', '#ffffff');
+    text.setAttribute('stroke', 'rgba(0,0,0,0.55)');
+    text.setAttribute('stroke-width', '2.5');
+    text.setAttribute('paint-order', 'stroke');
     text.setAttribute('font-size', n > 9 ? '9.5' : '11.5');
+    text.setAttribute('font-weight', '600');
     text.setAttribute('text-anchor', 'middle');
     text.setAttribute('dominant-baseline', 'middle');
     text.setAttribute('transform', 'rotate(' + midAngle + ' ' + labelPos.x + ' ' + labelPos.y + ')');
@@ -928,16 +972,50 @@ function drawWheelSlices(roleId) {
     group.appendChild(text);
   });
 
-  var hub = document.createElementNS(SVG_NS, 'circle');
-  hub.setAttribute('cx', cx); hub.setAttribute('cy', cy); hub.setAttribute('r', 20);
-  hub.setAttribute('fill', '#18171a');
-  hub.setAttribute('stroke', '#ffd400');
-  hub.setAttribute('stroke-width', '3');
-  group.appendChild(hub);
-
   group.style.transformOrigin = '150px 150px';
   group.style.transform = 'rotate(' + wheelState[roleId].rotation + 'deg)';
   svg.appendChild(group);
+
+  // Hub central: va FUERA del grupo que gira, para que el icono
+  // del rol se quede siempre derecho y legible.
+  var hub = document.createElementNS(SVG_NS, 'circle');
+  hub.setAttribute('cx', cx); hub.setAttribute('cy', cy); hub.setAttribute('r', 22);
+  hub.setAttribute('fill', '#18171a');
+  hub.setAttribute('stroke', 'var(--wheel-accent, #ffd400)');
+  hub.setAttribute('stroke-width', '3');
+  svg.appendChild(hub);
+
+  var hubIcon = document.createElementNS(SVG_NS, 'text');
+  hubIcon.setAttribute('x', cx);
+  hubIcon.setAttribute('y', cy);
+  hubIcon.setAttribute('text-anchor', 'middle');
+  hubIcon.setAttribute('dominant-baseline', 'central');
+  hubIcon.setAttribute('font-size', '20');
+  hubIcon.textContent = wheelState[roleId].icon || '🎯';
+  svg.appendChild(hubIcon);
+}
+
+function burstConfetti(container, accent) {
+  if (!container) return;
+  container.innerHTML = '';
+  var colors = [accent, '#ffd400', '#ffffff', '#e6007e'];
+  var count = 20;
+  for (var i = 0; i < count; i++) {
+    var piece = document.createElement('span');
+    piece.className = 'confetti-piece';
+    var angle = Math.random() * Math.PI * 2;
+    var dist = 55 + Math.random() * 65;
+    var tx = Math.cos(angle) * dist;
+    var ty = Math.sin(angle) * dist - 25; // sesgo hacia arriba, más "explosión"
+    piece.style.setProperty('--tx', tx.toFixed(0) + 'px');
+    piece.style.setProperty('--ty', ty.toFixed(0) + 'px');
+    piece.style.setProperty('--rot', (Math.random() * 540 - 270).toFixed(0) + 'deg');
+    piece.style.background = colors[i % colors.length];
+    piece.style.animationDelay = (Math.random() * 0.12).toFixed(2) + 's';
+    container.appendChild(piece);
+  }
+  clearTimeout(container._cleanupTimeout);
+  container._cleanupTimeout = setTimeout(function(){ container.innerHTML = ''; }, 1300);
 }
 
 function spinWheel(roleId) {
@@ -950,6 +1028,9 @@ function spinWheel(roleId) {
   state.spinning = true;
   var spinBtn = document.getElementById('spin-btn-' + roleId);
   if (spinBtn) spinBtn.disabled = true;
+
+  var wheelWrapEl = document.getElementById('wheel-wrap-' + roleId);
+  if (wheelWrapEl) wheelWrapEl.classList.add('is-spinning');
 
   var resultEl = document.getElementById('wheel-result-' + roleId);
   resultEl.textContent = 'Girando…';
@@ -973,9 +1054,11 @@ function spinWheel(roleId) {
   state.timeoutId = setTimeout(function(){
     state.spinning = false;
     if (spinBtn) spinBtn.disabled = false;
+    if (wheelWrapEl) wheelWrapEl.classList.remove('is-spinning');
     var winner = members[winnerIndex];
-    resultEl.textContent = '🎉 ' + winner.alias;
+    resultEl.textContent = '🏆 ' + winner.alias;
     resultEl.classList.add('has-winner');
+    burstConfetti(document.getElementById('confetti-' + roleId), state.accent);
   }, 4300);
 }
 
@@ -985,10 +1068,11 @@ function buildWheelsUI() {
   wrap.innerHTML = '';
 
   ROLE_WHEELS.forEach(function(role){
-    wheelState[role.id] = { rotation: 0, spinning: false, members: [], timeoutId: null };
+    wheelState[role.id] = { rotation: 0, spinning: false, members: [], timeoutId: null, icon: role.icon, accent: role.accent };
 
     var card = document.createElement('div');
     card.className = 'wheel-card';
+    card.style.setProperty('--wheel-accent', role.accent);
 
     var title = document.createElement('h2');
     title.className = 'wheel-title';
@@ -996,18 +1080,22 @@ function buildWheelsUI() {
 
     var wheelWrap = document.createElement('div');
     wheelWrap.className = 'wheel-wrap';
+    wheelWrap.id = 'wheel-wrap-' + role.id;
+
+    var glow = document.createElement('div');
+    glow.className = 'wheel-glow';
 
     var pointer = document.createElement('div');
     pointer.className = 'wheel-pointer';
-    pointer.textContent = '▼';
 
     var svg = document.createElementNS(SVG_NS, 'svg');
     svg.setAttribute('id', 'wheel-svg-' + role.id);
     svg.setAttribute('class', 'wheel-svg');
     svg.setAttribute('viewBox', '0 0 300 300');
 
-    wheelWrap.appendChild(pointer);
+    wheelWrap.appendChild(glow);
     wheelWrap.appendChild(svg);
+    wheelWrap.appendChild(pointer);
 
     var btn = document.createElement('button');
     btn.className = 'btn wheel-spin-btn';
@@ -1021,10 +1109,15 @@ function buildWheelsUI() {
     result.id = 'wheel-result-' + role.id;
     result.textContent = 'Pulsa girar para elegir';
 
+    var confetti = document.createElement('div');
+    confetti.className = 'confetti-layer';
+    confetti.id = 'confetti-' + role.id;
+
     card.appendChild(title);
     card.appendChild(wheelWrap);
     card.appendChild(btn);
     card.appendChild(result);
+    card.appendChild(confetti);
     wrap.appendChild(card);
 
     drawWheelSlices(role.id);
@@ -1248,10 +1341,10 @@ function renderOrgchart() {
    WIPES — calendario + apuntes (persistidos en el servidor)
    ============================================================ */
 var WIPE_TYPES = {
-  monday:  { label: 'Monday',  startDow: 1, days: 3, accent: '#8a5a3a' },
-  normal:  { label: 'Thursday', startDow: 4, days: 4, accent: '#e6007e' },
-  friday:  { label: 'Friday',  startDow: 5, days: 3, accent: '#ffd400' },
-  forzado: { label: 'Forzado', startDow: 4, days: 4, accent: '#ff4d4d' }
+  monday:  { label: 'Monday',  icon: '🌙', startDow: 1, days: 3, accent: '#8a5a3a' },
+  normal:  { label: 'Thursday', icon: '🔥', startDow: 4, days: 4, accent: '#e6007e' },
+  friday:  { label: 'Friday',  icon: '🌅', startDow: 5, days: 3, accent: '#ffd400' },
+  forzado: { label: 'Forzado', icon: '⭐', startDow: 4, days: 4, accent: '#ff4d4d' }
 };
 
 var wipeWeekOffset = 0;
@@ -1278,7 +1371,7 @@ function wipesForWeek(monday) {
     }
     var cfg = WIPE_TYPES[typeKey];
     var end = addDays(start, cfg.days - 1);
-    wipes.push({ id: wipeId(typeKey, start), typeKey: typeKey, label: cfg.label, accent: cfg.accent, days: cfg.days, start: start, end: end });
+    wipes.push({ id: wipeId(typeKey, start), typeKey: typeKey, label: cfg.label, icon: cfg.icon, accent: cfg.accent, days: cfg.days, start: start, end: end });
   });
 
   return wipes;
@@ -1340,7 +1433,7 @@ function buildModality(wipe, modality, isFinished) {
   var iAmIn = me && list.indexOf(me) !== -1;
 
   var box = document.createElement('div');
-  box.className = 'modality';
+  box.className = 'modality' + (isTrios && list.length >= 3 ? ' is-full' : '');
 
   var head = document.createElement('div');
   head.className = 'modality-head';
@@ -1358,7 +1451,7 @@ function buildModality(wipe, modality, isFinished) {
   if (list.length === 0) {
     var empty = document.createElement('div');
     empty.className = 'signup-empty';
-    empty.textContent = 'Nadie todavía';
+    empty.textContent = 'Nadie todavía · ¡sé el primero! 🙋';
     listEl.appendChild(empty);
   } else {
     list.forEach(function(username, i){
@@ -1405,9 +1498,10 @@ function buildWipeCard(wipe) {
   var today = startOfDay(new Date());
   var isActive = wipe.start <= today && today <= wipe.end;
   var isFinished = today > wipe.end;
+  var msPerDay = 24 * 60 * 60 * 1000;
 
   var card = document.createElement('div');
-  card.className = 'wipe-card' + (isFinished ? ' is-finished' : '');
+  card.className = 'wipe-card' + (isFinished ? ' is-finished' : '') + (isActive ? ' is-active' : '');
   card.style.setProperty('--wipe-accent', wipe.accent);
 
   var head = document.createElement('div');
@@ -1418,12 +1512,12 @@ function buildWipeCard(wipe) {
   titleRow.className = 'wipe-title-row';
   var type = document.createElement('span');
   type.className = 'wipe-type';
-  type.textContent = wipe.label;
+  type.textContent = (wipe.icon ? wipe.icon + ' ' : '') + wipe.label;
   titleRow.appendChild(type);
   if (wipe.typeKey === 'forzado') {
     var star = document.createElement('span');
     star.className = 'wipe-forzado-star';
-    star.textContent = '⭐ Mensual';
+    star.textContent = 'Mensual';
     star.style.color = wipe.accent;
     star.style.fontFamily = 'var(--font-mono)';
     star.style.fontSize = '0.62rem';
@@ -1437,6 +1531,18 @@ function buildWipeCard(wipe) {
   dates.innerHTML = fmtDate(wipe.start) + ' → ' + fmtDate(wipe.end) +
     ' <span class="duration">· ' + wipe.days + ' días</span>';
   left.appendChild(dates);
+
+  var countdown = document.createElement('div');
+  countdown.className = 'wipe-countdown';
+  if (isActive) {
+    var daysLeft = Math.round((wipe.end - today) / msPerDay);
+    countdown.textContent = daysLeft <= 0 ? 'Termina hoy' : ('Termina en ' + daysLeft + ' día' + (daysLeft === 1 ? '' : 's'));
+  } else if (!isFinished) {
+    var daysToStart = Math.round((wipe.start - today) / msPerDay);
+    countdown.textContent = daysToStart <= 0 ? 'Empieza hoy' : ('Empieza en ' + daysToStart + ' día' + (daysToStart === 1 ? '' : 's'));
+  }
+  if (countdown.textContent) left.appendChild(countdown);
+
   head.appendChild(left);
 
   var status = document.createElement('span');
@@ -1467,7 +1573,7 @@ function renderWipesLegend() {
     dot.style.background = cfg.accent;
     item.appendChild(dot);
     var txt = document.createElement('span');
-    txt.textContent = cfg.label + ' (' + cfg.days + 'd)';
+    txt.textContent = cfg.icon + ' ' + cfg.label + ' (' + cfg.days + 'd)';
     item.appendChild(txt);
     legend.appendChild(item);
   });
