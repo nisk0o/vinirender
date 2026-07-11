@@ -23,6 +23,26 @@ const PUBLIC_DIR = path.join(__dirname, 'public');
 
 const ROLES = ['Gru', 'Minion menaje', 'Minion fundador', 'Amo de segundo nivel', 'Minion supremo'];
 
+// ---- Amonestaciones y méritos ----
+// Faltas (leve = 1, grave = 2): con FAULT_LIMIT puntos en un wipe se
+// degrada el rango según DEMOTION_MAP. Méritos (mérito = 1,
+// hazaña = 2): con MERIT_LIMIT puntos se asciende según
+// PROMOTION_MAP. Cooldown anti-spam: cada miembro (salvo Gru) solo
+// puede poner UNA falta o mérito cada POINT_COOLDOWN_MS.
+const FAULT_LIMIT = 10;
+const MERIT_LIMIT = 10;
+const POINT_COOLDOWN_MS = 3 * 60 * 60 * 1000; // 3 horas
+const DEMOTION_MAP = {
+  'Amo de segundo nivel': 'Minion supremo',
+  'Minion fundador': 'Minion supremo',
+  'Minion supremo': 'Minion menaje'
+};
+const PROMOTION_MAP = {
+  'Minion menaje': 'Minion supremo',
+  'Minion supremo': 'Amo de segundo nivel',
+  'Minion fundador': 'Amo de segundo nivel'
+};
+
 // ------------------------------------------------------------
 // Utilidades de contraseña (scrypt + salt, comparación insensible
 // a mayúsculas/minúsculas para mantener el comportamiento original)
@@ -142,6 +162,14 @@ function rowToNote(row) { return { id: row.id, username: row.username, text: row
 function rowToImage(row) { return { id: row.id, username: row.username, dataUrl: row.data_url, ts: Number(row.ts) }; }
 function rowToRaid(row) { return { id: row.id, structureId: row.structure_id, explosiveKey: row.explosive_key, qty: row.qty }; }
 function rowToEnemy(row) { return { id: row.id, serverId: row.server_id, name: row.name, steamId: row.steam_id || '', team: row.team || '', ts: Number(row.ts) }; }
+function rowToPoint(row) {
+  return {
+    id: row.id, wipeId: row.wipe_id, username: row.username,
+    kind: row.kind, weight: row.weight, reportedBy: row.reported_by || '',
+    appealStatus: row.appeal_status || null, appealText: row.appeal_text || '',
+    ts: Number(row.ts)
+  };
+}
 
 // ------------------------------------------------------------
 // Acceso a datos (todo a través de Supabase)
@@ -417,6 +445,9 @@ async function handleApi(req, res, pathname) {
         }
       }
 
+      await db.update('wipe_points', `username=eq.${encodeURIComponent(oldUsername)}`, { username: newUsername });
+      await db.update('wipe_points', `reported_by=eq.${encodeURIComponent(oldUsername)}`, { reported_by: newUsername });
+
       await db.remove('users', `username=eq.${encodeURIComponent(oldUsername)}`);
 
       for (const [tok, uname] of sessions.entries()) {
@@ -521,6 +552,154 @@ async function handleApi(req, res, pathname) {
 
     await db.upsert('wipe_signups', { wipe_id: wipeIdVal, trios: s.trios, main: s.main }, 'wipe_id');
     return sendJSON(res, 200, { signups: s });
+  }
+
+  // ---- AMONESTACIONES Y MÉRITOS (puntos por wipe) ----
+  // Devuelve TODOS los puntos (faltas y méritos); el frontend agrupa.
+  if (pathname === '/api/points' && method === 'GET') {
+    if (!requireAuth()) return;
+    const rows = await db.select('wipe_points', 'select=*&order=ts.asc');
+    return sendJSON(res, 200, { points: rows.map(rowToPoint) });
+  }
+
+  // Añadir una falta o un mérito. Cualquier miembro puede, pero:
+  //  - no a sí mismo, ni a Gru,
+  //  - con un cooldown de 3 h entre votos (Gru está exento).
+  // Si el afectado llega al límite: degradación (faltas) o ascenso
+  // (méritos) automáticos, reseteo de ese contador y nota en tablón.
+  if (pathname === '/api/points' && method === 'POST') {
+    if (!requireAuth()) return;
+    let body;
+    try { body = await readBody(req); } catch (e) { return sendJSON(res, 400, { error: 'Petición inválida.' }); }
+    const wipeIdVal = String(body.wipeId || '').trim();
+    const targetUsername = String(body.username || '').trim();
+    const kind = body.kind === 'merito' ? 'merito' : (body.kind === 'falta' ? 'falta' : null);
+    const weight = Number(body.weight) === 2 ? 2 : 1;
+    if (!wipeIdVal || !targetUsername) return sendJSON(res, 400, { error: 'Faltan datos.' });
+    if (!kind) return sendJSON(res, 400, { error: 'Tipo no válido.' });
+
+    const target = await findUser(targetUsername);
+    if (!target) return sendJSON(res, 404, { error: 'Usuario no encontrado.' });
+    if (target.role === 'Gru') return sendJSON(res, 403, { error: 'A Gru ni se le amonesta ni le hacen falta méritos. Bello!' });
+    if (target.username === user.username) {
+      return sendJSON(res, 403, { error: kind === 'merito' ? 'Los méritos te los tienen que reconocer los demás. 😏' : 'No puedes ponerte faltas a ti mismo.' });
+    }
+
+    // Cooldown anti-spam (compartido entre faltas y méritos)
+    if (user.role !== 'Gru') {
+      const last = await db.select('wipe_points',
+        `select=ts&reported_by=eq.${encodeURIComponent(user.username)}&order=ts.desc&limit=1`);
+      if (last && last[0]) {
+        const elapsed = Date.now() - Number(last[0].ts);
+        if (elapsed < POINT_COOLDOWN_MS) {
+          const mins = Math.ceil((POINT_COOLDOWN_MS - elapsed) / 60000);
+          const hh = Math.floor(mins / 60), mm = mins % 60;
+          const waitTxt = hh > 0 ? `${hh} h ${mm} min` : `${mm} min`;
+          return sendJSON(res, 429, { error: `Solo puedes votar una vez cada 3 horas. Te quedan ${waitTxt}.` });
+        }
+      }
+    }
+
+    await db.insert('wipe_points', {
+      wipe_id: wipeIdVal, username: target.username, kind, weight,
+      reported_by: user.username, ts: Date.now()
+    });
+
+    // ¿Ha llegado al límite de faltas o de méritos en este wipe?
+    const userPoints = await db.select('wipe_points',
+      `select=*&wipe_id=eq.${encodeURIComponent(wipeIdVal)}&username=eq.${encodeURIComponent(target.username)}&kind=eq.${kind}`);
+    const total = userPoints.reduce((sum, p) => sum + (p.weight || 1), 0);
+    const limit = kind === 'falta' ? FAULT_LIMIT : MERIT_LIMIT;
+
+    let demoted = null;
+    let promoted = null;
+    if (total >= limit) {
+      if (kind === 'falta') {
+        const newRole = DEMOTION_MAP[target.role];
+        if (newRole) {
+          await db.update('users', `username=eq.${encodeURIComponent(target.username)}`, { role: newRole });
+          demoted = { username: target.username, alias: target.alias, from: target.role, to: newRole };
+          await db.insert('board_notes', {
+            username: target.username,
+            text: `⚖️ Sanción automática: he acumulado ${FAULT_LIMIT} faltas en este wipe y he sido degradado de ${target.role} a ${newRole}. 😔`,
+            ts: Date.now()
+          });
+        }
+      } else {
+        const newRole = PROMOTION_MAP[target.role];
+        if (newRole) {
+          await db.update('users', `username=eq.${encodeURIComponent(target.username)}`, { role: newRole });
+          promoted = { username: target.username, alias: target.alias, from: target.role, to: newRole };
+          await db.insert('board_notes', {
+            username: target.username,
+            text: `🏅 Ascenso automático: he acumulado ${MERIT_LIMIT} puntos de mérito en este wipe y asciendo de ${target.role} a ${newRole}. 💪`,
+            ts: Date.now()
+          });
+        }
+      }
+      // Se resetea el contador correspondiente (haya o no cambio de rango).
+      await db.remove('wipe_points', `wipe_id=eq.${encodeURIComponent(wipeIdVal)}&username=eq.${encodeURIComponent(target.username)}&kind=eq.${kind}`);
+    }
+
+    const rows = await db.select('wipe_points', 'select=*&order=ts.asc');
+    return sendJSON(res, 201, { points: rows.map(rowToPoint), total, demoted, promoted });
+  }
+
+  // Quitar UN punto concreto, falta o mérito (solo Gru).
+  if ((m = pathname.match(/^\/api\/points\/(\d+)$/)) && method === 'DELETE') {
+    if (!requireGru()) return;
+    await db.remove('wipe_points', `id=eq.${Number(m[1])}`);
+    const rows = await db.select('wipe_points', 'select=*&order=ts.asc');
+    return sendJSON(res, 200, { points: rows.map(rowToPoint) });
+  }
+
+  // Limpiar las faltas o los méritos de una persona en un wipe (solo Gru).
+  if ((m = pathname.match(/^\/api\/wipes\/([^/]+)\/points\/([^/]+)\/(falta|merito)$/)) && method === 'DELETE') {
+    if (!requireGru()) return;
+    const wipeIdVal = decodeURIComponent(m[1]);
+    const targetUsername = decodeURIComponent(m[2]);
+    await db.remove('wipe_points', `wipe_id=eq.${encodeURIComponent(wipeIdVal)}&username=eq.${encodeURIComponent(targetUsername)}&kind=eq.${m[3]}`);
+    const rows = await db.select('wipe_points', 'select=*&order=ts.asc');
+    return sendJSON(res, 200, { points: rows.map(rowToPoint) });
+  }
+
+  // Apelar una falta propia (una sola vez, con motivo).
+  if ((m = pathname.match(/^\/api\/points\/(\d+)\/appeal$/)) && method === 'POST') {
+    if (!requireAuth()) return;
+    let body;
+    try { body = await readBody(req); } catch (e) { return sendJSON(res, 400, { error: 'Petición inválida.' }); }
+    const id = Number(m[1]);
+    const found = await db.select('wipe_points', `select=*&id=eq.${id}`);
+    if (!found || !found[0]) return sendJSON(res, 404, { error: 'Falta no encontrada.' });
+    const p = found[0];
+    if (p.kind !== 'falta') return sendJSON(res, 400, { error: 'Los méritos no se apelan. 😄' });
+    if (p.username !== user.username) return sendJSON(res, 403, { error: 'Solo puedes apelar tus propias faltas.' });
+    if (p.appeal_status === 'pendiente') return sendJSON(res, 409, { error: 'Esa falta ya tiene una apelación pendiente.' });
+    if (p.appeal_status === 'rechazada') return sendJSON(res, 409, { error: 'Esa apelación ya fue rechazada: no hay segunda oportunidad.' });
+    const text = String(body.text || '').trim().slice(0, 280);
+    if (!text) return sendJSON(res, 400, { error: 'Tienes que dar un motivo para apelar.' });
+    await db.update('wipe_points', `id=eq.${id}`, { appeal_status: 'pendiente', appeal_text: text });
+    const rows = await db.select('wipe_points', 'select=*&order=ts.asc');
+    return sendJSON(res, 200, { points: rows.map(rowToPoint) });
+  }
+
+  // Resolver una apelación (solo Gru): aceptar borra la falta,
+  // rechazar la deja fijada para siempre.
+  if ((m = pathname.match(/^\/api\/points\/(\d+)\/appeal\/resolve$/)) && method === 'POST') {
+    if (!requireGru()) return;
+    let body;
+    try { body = await readBody(req); } catch (e) { return sendJSON(res, 400, { error: 'Petición inválida.' }); }
+    const id = Number(m[1]);
+    const found = await db.select('wipe_points', `select=*&id=eq.${id}`);
+    if (!found || !found[0]) return sendJSON(res, 404, { error: 'Falta no encontrada.' });
+    if (found[0].appeal_status !== 'pendiente') return sendJSON(res, 409, { error: 'Esa falta no tiene apelación pendiente.' });
+    if (body.accept === true) {
+      await db.remove('wipe_points', `id=eq.${id}`);
+    } else {
+      await db.update('wipe_points', `id=eq.${id}`, { appeal_status: 'rechazada' });
+    }
+    const rows = await db.select('wipe_points', 'select=*&order=ts.asc');
+    return sendJSON(res, 200, { points: rows.map(rowToPoint) });
   }
 
   // ---- CALCULADORA DE RAIDEO (lista compartida) ----
