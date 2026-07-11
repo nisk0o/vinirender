@@ -580,7 +580,6 @@ async function handleApi(req, res, pathname) {
 
     const target = await findUser(targetUsername);
     if (!target) return sendJSON(res, 404, { error: 'Usuario no encontrado.' });
-    if (target.role === 'Gru') return sendJSON(res, 403, { error: 'A Gru ni se le amonesta ni le hacen falta méritos. Bello!' });
     if (target.username === user.username) {
       return sendJSON(res, 403, { error: kind === 'merito' ? 'Los méritos te los tienen que reconocer los demás. 😏' : 'No puedes ponerte faltas a ti mismo.' });
     }
