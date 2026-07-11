@@ -54,6 +54,33 @@ async function api(path, opts) {
   return data;
 }
 
+/* ---- Toasts (avisos elegantes en vez de showToast() del navegador) ---- */
+function showToast(message, type) {
+  type = type || 'error';
+  var stack = document.getElementById('toast-stack');
+  if (!stack) {
+    stack = document.createElement('div');
+    stack.className = 'toast-stack';
+    stack.id = 'toast-stack';
+    document.body.appendChild(stack);
+  }
+  var t = document.createElement('div');
+  t.className = 'toast is-' + type;
+  t.setAttribute('role', type === 'error' ? 'alert' : 'status');
+  var icon = document.createElement('span');
+  icon.className = 'toast-icon';
+  icon.textContent = type === 'success' ? '✅' : (type === 'info' ? '💡' : '⚠️');
+  var txt = document.createElement('span');
+  txt.textContent = message;
+  t.appendChild(icon);
+  t.appendChild(txt);
+  stack.appendChild(t);
+  setTimeout(function(){
+    t.classList.add('leaving');
+    setTimeout(function(){ t.remove(); }, 220);
+  }, 3800);
+}
+
 /* ---- Estado local (espejo de lo que hay en el servidor) ---- */
 var loginScreen = document.getElementById('login-screen');
 var appShell = document.getElementById('app-shell');
@@ -154,7 +181,7 @@ async function setUserRole(u, newRole) {
   try {
     await api('/users/' + encodeURIComponent(u.username) + '/role', { method: 'PATCH', body: { role: newRole } });
   } catch (e) {
-    alert(e.message);
+    showToast(e.message);
     return;
   }
   closeRoleModal();
@@ -292,7 +319,7 @@ function renderBoard() {
 async function deleteBoardNote(id) {
   try {
     await api('/board/' + id, { method: 'DELETE' });
-  } catch (e) { alert(e.message); return; }
+  } catch (e) { showToast(e.message); return; }
   await fetchBoard();
   renderBoard();
 }
@@ -315,11 +342,12 @@ function setupBoard() {
     if (!text) return;
     try {
       await api('/board', { method: 'POST', body: { text: text } });
-    } catch (err) { alert(err.message); return; }
+    } catch (err) { showToast(err.message); return; }
     input.value = '';
     updateCounter();
     await fetchBoard();
     renderBoard();
+    showToast('Nota publicada en el tablón', 'success');
   });
 }
 
@@ -592,7 +620,7 @@ function renderEnemiesPanel() {
       var teamSelect = makeEnemyTeamSelect(en.team, async function(newTeam){
         try {
           await api('/enemies/' + en.id, { method: 'PATCH', body: { team: newTeam } });
-        } catch (err) { alert(err.message); return; }
+        } catch (err) { showToast(err.message); return; }
         await fetchEnemies();
         renderEnemyTeamSelect();
         renderEnemiesPanel();
@@ -607,7 +635,7 @@ function renderEnemiesPanel() {
       delBtn.addEventListener('click', async function(){
         try {
           await api('/enemies/' + en.id, { method: 'DELETE' });
-        } catch (err) { alert(err.message); return; }
+        } catch (err) { showToast(err.message); return; }
         await fetchEnemies();
         renderEnemyTeamSelect();
         renderEnemiesPanel();
@@ -645,7 +673,7 @@ function setupEnemies() {
     if (!name) return;
     var steamId = steamInput.value.trim();
     if (steamId && !/^\d{15,20}$/.test(steamId)) {
-      alert('La SteamID64 debe ser un número de entre 15 y 20 dígitos. Puedes dejarla vacía si no la tienes a mano.');
+      showToast('La SteamID64 debe ser un número de entre 15 y 20 dígitos. Puedes dejarla vacía si no la tienes a mano.');
       return;
     }
 
@@ -655,7 +683,7 @@ function setupEnemies() {
       await api('/enemies', { method: 'POST', body: {
         serverId: enemiesSelectedServerId, name: name, steamId: steamId, team: team
       } });
-    } catch (err) { alert(err.message); return; }
+    } catch (err) { showToast(err.message); return; }
 
     nameInput.value = '';
     steamInput.value = '';
@@ -663,6 +691,7 @@ function setupEnemies() {
     await fetchEnemies();
     renderEnemyTeamSelect();
     renderEnemiesPanel();
+    showToast('Enemigo "' + name + '" fichado', 'success');
   });
 }
 
@@ -813,7 +842,7 @@ function renderRaidList() {
     removeBtn.title = 'Quitar de la lista';
     removeBtn.textContent = '✕';
     removeBtn.addEventListener('click', async function(){
-      try { await api('/raid/' + row.id, { method: 'DELETE' }); } catch (e) { alert(e.message); return; }
+      try { await api('/raid/' + row.id, { method: 'DELETE' }); } catch (e) { showToast(e.message); return; }
       await fetchRaid();
       renderRaidList();
     });
@@ -890,14 +919,14 @@ function setupRaidCalc() {
 
     try {
       await api('/raid', { method: 'POST', body: { structureId: structureId, explosiveKey: explosiveKey, qty: qty } });
-    } catch (e) { alert(e.message); return; }
+    } catch (e) { showToast(e.message); return; }
     document.getElementById('raid-qty-input').value = 1;
     await fetchRaid();
     renderRaidList();
   });
 
   document.getElementById('raid-clear-btn').addEventListener('click', async function(){
-    try { await api('/raid', { method: 'DELETE' }); } catch (e) { alert(e.message); return; }
+    try { await api('/raid', { method: 'DELETE' }); } catch (e) { showToast(e.message); return; }
     await fetchRaid();
     renderRaidList();
   });
@@ -1180,7 +1209,7 @@ function setupLocker() {
         await api('/users/me', { method: 'PATCH', body: {
           alias: currentUser.alias, username: currentUser.username, steamId: currentUser.steamId || '', email: currentUser.email || '', avatar: ev.target.result
         } });
-      } catch (err) { alert(err.message); return; }
+      } catch (err) { showToast(err.message); return; }
       currentUser.avatar = ev.target.result;
       renderLocker();
       await fetchUsers();
@@ -1196,14 +1225,14 @@ function setupLocker() {
     var newSteamId = document.getElementById('edit-steamid').value.trim();
     var newEmail = document.getElementById('edit-email').value.trim();
 
-    if (!newAlias) { alert('El alias no puede estar vacío.'); return; }
-    if (!newUsername) { alert('El usuario no puede estar vacío.'); return; }
+    if (!newAlias) { showToast('El alias no puede estar vacío.'); return; }
+    if (!newUsername) { showToast('El usuario no puede estar vacío.'); return; }
     if (newSteamId && !/^\d{15,20}$/.test(newSteamId)) {
-      alert('La SteamID64 debe ser un número de entre 15 y 20 dígitos (ej: 76561198012345678). Puedes dejarla vacía si no la tienes a mano.');
+      showToast('La SteamID64 debe ser un número de entre 15 y 20 dígitos (ej: 76561198012345678). Puedes dejarla vacía si no la tienes a mano.');
       return;
     }
     if (newEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) {
-      alert('Ese email no parece válido.');
+      showToast('Ese email no parece válido.');
       return;
     }
 
@@ -1213,7 +1242,7 @@ function setupLocker() {
     try {
       var data = await api('/users/me', { method: 'PATCH', body: body });
       currentUser = data.user;
-    } catch (err) { alert(err.message); return; }
+    } catch (err) { showToast(err.message); return; }
 
     document.getElementById('user-alias').textContent = currentUser.alias;
     document.getElementById('user-role').textContent = isGru(currentUser) ? 'Líder · Gru' : currentUser.role;
@@ -1241,6 +1270,8 @@ function setupNav() {
       tab.classList.add('active');
       document.querySelectorAll('.view').forEach(function(v){ v.classList.remove('active'); });
       document.getElementById('view-' + view).classList.add('active');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      tab.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
 
       if (view === 'taquilla') renderLocker();
       if (view === 'zerg') renderOrgchart();
@@ -1407,7 +1438,7 @@ async function toggleSignup(id, modality) {
     wipeSignups[id] = data.signups;
   } catch (e) {
     if (e.data && e.data.signups) wipeSignups[id] = e.data.signups;
-    else { alert(e.message); return; }
+    else { showToast(e.message); return; }
   }
   renderWipes();
 }
