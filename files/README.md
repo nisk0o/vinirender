@@ -154,17 +154,17 @@ ya tenga una cuenta en la app y le haya vinculado su email.
 Se crean solos la primera vez que el servidor encuentra la tabla
 `users` vacía en Supabase:
 
-| Usuario | Contraseña   | Rango inicial |
-|---------|--------------|---------------|
-| julian  | julian1997   | Gru           |
-| gonzalo | gonzalo2001  | Minion menaje |
-| luciano | luciano1997  | Minion menaje |
-| xavi    | xavi1999     | Minion menaje |
-| javi    | javi1997     | Minion menaje |
-| adri    | adri1997     | Minion menaje |
-| joseca  | joseca1997   | Minion menaje |
-| manu    | manu1999     | Minion menaje |
-| alvaro  | alvaro1997   | Minion menaje |
+| Usuario |   | Rango inicial |
+|---------|   |---------------|
+| julian  |   | Gru           |
+| gonzalo |   | Minion menaje |
+| luciano |   | Minion menaje |
+| xavi    |   | Minion menaje |
+| javi    |   | Minion menaje |
+| adri    |   | Minion menaje |
+| joseca  |   | Minion menaje |
+| manu    |   | Minion menaje |
+| alvaro  |   | Minion menaje |
 
 Recomendable cambiar la contraseña desde **Taquilla** en cuanto
 entréis.
