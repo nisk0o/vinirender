@@ -1273,6 +1273,7 @@ function setupNav() {
       window.scrollTo({ top: 0, behavior: 'smooth' });
       tab.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
 
+      if (view === 'inicio') { await fetchWipeSignups(); await fetchPoints(); renderFaults(); }
       if (view === 'taquilla') renderLocker();
       if (view === 'zerg') renderOrgchart();
       if (view === 'wipes') { wipeWeekOffset = 0; await fetchWipeSignups(); renderWipes(); }
@@ -1441,6 +1442,7 @@ async function toggleSignup(id, modality) {
     else { showToast(e.message); return; }
   }
   renderWipes();
+  renderFaults(); // los apuntados cambian → el tribunal también
 }
 
 function makeMiniAvatar(u) {
@@ -1677,6 +1679,354 @@ function renderWipes() {
 }
 
 /* ============================================================
+   AMONESTACIONES Y MÉRITOS — puntos por wipe, en Inicio
+   ============================================================ */
+var FAULT_LIMIT = 10;
+var MERIT_LIMIT = 10;
+var pointRows = []; // {id, wipeId, username, kind, weight, reportedBy, appealStatus, appealText, ts}
+
+async function fetchPoints() {
+  try {
+    var data = await api('/points');
+    pointRows = data.points || [];
+  } catch (e) {
+    pointRows = [];
+  }
+}
+
+// Lista (sin repetidos) de apuntados a un wipe, sumando tríos y main.
+function signedUpUsers(wipeIdVal) {
+  var s = wipeSignups[wipeIdVal];
+  if (!s) return [];
+  var seen = {};
+  var out = [];
+  (s.trios || []).concat(s.main || []).forEach(function(u){
+    if (!seen[u]) { seen[u] = true; out.push(u); }
+  });
+  return out;
+}
+
+// Elige el wipe que se está "valorando":
+//  1º el wipe EN CURSO con gente apuntada,
+//  2º si no hay ninguno en curso, el próximo con MÁS gente apuntada
+//     (en caso de empate, el más cercano en el calendario).
+function pickSanctionWipe() {
+  var today = startOfDay(new Date());
+  var monday = mondayOfWeek(new Date());
+  var candidates = [];
+  for (var w = 0; w <= MAX_WEEKS_AHEAD; w++) {
+    wipesForWeek(addDays(monday, w * 7)).forEach(function(wipe){
+      if (today > wipe.end) return; // finalizado: ya no se valora
+      var people = signedUpUsers(wipe.id);
+      if (!people.length) return;
+      candidates.push({
+        wipe: wipe,
+        people: people,
+        active: (wipe.start <= today && today <= wipe.end)
+      });
+    });
+  }
+  if (!candidates.length) return null;
+  candidates.sort(function(a, b){
+    if (a.active !== b.active) return a.active ? -1 : 1;
+    if (b.people.length !== a.people.length) return b.people.length - a.people.length;
+    return a.wipe.start - b.wipe.start;
+  });
+  return candidates[0];
+}
+
+var POINT_LABELS = {
+  falta:  { 1: 'falta leve', 2: 'falta GRAVE' },
+  merito: { 1: 'mérito', 2: 'HAZAÑA' }
+};
+
+async function afterPointsMutation(data) {
+  pointRows = data.points || [];
+  var change = data.demoted || data.promoted;
+  if (change) {
+    var isUp = !!data.promoted;
+    showToast((isUp ? '🏅 ' : '⚖️ ') + change.alias + (isUp
+      ? ' ha acumulado ' + MERIT_LIMIT + ' méritos: ¡asciende a ' + change.to + '!'
+      : ' ha llegado a ' + FAULT_LIMIT + ' faltas: degradado a ' + change.to), 'success');
+    await fetchUsers();
+    renderMembers();
+    await fetchBoard();
+    renderBoard();
+    if (currentUser && change.username === currentUser.username) {
+      currentUser.role = change.to;
+      document.getElementById('user-role').textContent = currentUser.role;
+    }
+    if (document.getElementById('view-zerg').classList.contains('active')) renderOrgchart();
+  }
+  renderFaults();
+}
+
+async function addPoint(wipeIdVal, username, kind, weight) {
+  var u = userByUsername(username);
+  var who = u ? u.alias : username;
+  var label = POINT_LABELS[kind][weight];
+  if (weight === 2 && !window.confirm('¿Poner una ' + label + ' (2 puntos) a ' + who + '?')) return;
+  try {
+    var data = await api('/points', { method: 'POST', body: { wipeId: wipeIdVal, username: username, kind: kind, weight: weight } });
+    await afterPointsMutation(data);
+  } catch (e) {
+    showToast(e.message);
+  }
+}
+
+async function removePoint(pointId) {
+  try {
+    var data = await api('/points/' + pointId, { method: 'DELETE' });
+    pointRows = data.points || [];
+    renderFaults();
+  } catch (e) { showToast(e.message); }
+}
+
+async function clearPoints(wipeIdVal, username, kind) {
+  var u = userByUsername(username);
+  var who = u ? u.alias : username;
+  var what = kind === 'falta' ? 'las faltas' : 'los méritos';
+  if (!window.confirm('¿Quitar TODOS ' + what + ' de ' + who + ' en este wipe?')) return;
+  try {
+    var data = await api('/wipes/' + encodeURIComponent(wipeIdVal) + '/points/' + encodeURIComponent(username) + '/' + kind, { method: 'DELETE' });
+    pointRows = data.points || [];
+    renderFaults();
+  } catch (e) { showToast(e.message); }
+}
+
+async function appealFault(p) {
+  if (p.appealStatus === 'pendiente') { showToast('Esa falta ya tiene una apelación pendiente.', 'success'); return; }
+  if (p.appealStatus === 'rechazada') { showToast('Esa apelación ya fue rechazada: no hay segunda oportunidad.'); return; }
+  var text = window.prompt('⚖️ Apelación ante Gru — ¿por qué es injusta esta falta? (máx. 280 caracteres)');
+  if (text === null) return;
+  text = text.trim();
+  if (!text) { showToast('Tienes que dar un motivo para apelar.'); return; }
+  try {
+    var data = await api('/points/' + p.id + '/appeal', { method: 'POST', body: { text: text } });
+    pointRows = data.points || [];
+    showToast('Apelación enviada. Gru dictará sentencia. ⚖️', 'success');
+    renderFaults();
+  } catch (e) { showToast(e.message); }
+}
+
+async function resolveAppeal(pointId, accept) {
+  try {
+    var data = await api('/points/' + pointId + '/appeal/resolve', { method: 'POST', body: { accept: accept } });
+    pointRows = data.points || [];
+    showToast(accept ? 'Apelación aceptada: falta retirada.' : 'Apelación rechazada. La ley es la ley.', 'success');
+    renderFaults();
+  } catch (e) { showToast(e.message); }
+}
+
+function pointChipFace(p) {
+  if (p.kind === 'merito') return p.weight === 2 ? '🌟' : '🟩';
+  return p.weight === 2 ? '🟥' : '🟨';
+}
+
+function buildPointsMeter(total, limit, kind) {
+  var meter = document.createElement('div');
+  meter.className = 'fault-meter';
+  var icon = document.createElement('span');
+  icon.className = 'fault-meter-icon';
+  icon.textContent = kind === 'falta' ? '⚖️' : '🏅';
+  icon.title = kind === 'falta' ? 'Faltas (a ' + limit + ' se baja de rango)' : 'Méritos (a ' + limit + ' se sube de rango)';
+  var count = document.createElement('span');
+  count.className = 'fault-count';
+  count.textContent = total + '/' + limit;
+  var barWrap = document.createElement('span');
+  barWrap.className = 'fault-bar';
+  var bar = document.createElement('span');
+  bar.className = 'fault-bar-fill' + (kind === 'merito' ? ' is-merit' : '');
+  bar.style.width = Math.min(100, (total / limit) * 100) + '%';
+  barWrap.appendChild(bar);
+  meter.appendChild(icon);
+  meter.appendChild(count);
+  meter.appendChild(barWrap);
+  return meter;
+}
+
+function buildPointChips(points, iAmGru, isMine) {
+  var chips = document.createElement('div');
+  chips.className = 'fault-chips';
+  points.forEach(function(p){
+    var clickable = iAmGru || (isMine && p.kind === 'falta');
+    var chip = document.createElement(clickable ? 'button' : 'span');
+    chip.className = 'fault-chip is-' + p.kind + (p.appealStatus === 'pendiente' ? ' is-appealed' : '');
+    var by = p.reportedBy ? (userByUsername(p.reportedBy) || { alias: p.reportedBy }).alias : '?';
+    chip.textContent = pointChipFace(p) + (p.appealStatus === 'pendiente' ? '⚖️' : '');
+    var label = POINT_LABELS[p.kind][p.weight] + ' · puesta por ' + by;
+    if (p.appealStatus === 'pendiente') label += ' · APELADA (pendiente de Gru)';
+    if (p.appealStatus === 'rechazada') label += ' · apelación rechazada';
+    if (iAmGru) label += ' · pulsa para quitarla';
+    else if (isMine && p.kind === 'falta' && !p.appealStatus) label += ' · pulsa para APELAR';
+    chip.title = label;
+    if (clickable) {
+      chip.type = 'button';
+      if (iAmGru) chip.addEventListener('click', function(){ removePoint(p.id); });
+      else chip.addEventListener('click', function(){ appealFault(p); });
+    }
+    chips.appendChild(chip);
+  });
+  return chips;
+}
+
+function renderFaults() {
+  var panel = document.getElementById('faults-panel');
+  if (!panel) return;
+  panel.innerHTML = '';
+
+  var pick = pickSanctionWipe();
+  if (!pick) {
+    var empty = document.createElement('div');
+    empty.className = 'faults-empty';
+    empty.textContent = 'No hay ningún wipe con gente apuntada. Apuntaos en la pestaña Wipes para activar el tribunal. ⚖️';
+    panel.appendChild(empty);
+    return;
+  }
+
+  var wipe = pick.wipe;
+  var iAmGru = currentUser && isGru(currentUser);
+
+  // Cabecera: qué wipe se está valorando (para que no haya confusión)
+  var head = document.createElement('div');
+  head.className = 'faults-head';
+  head.style.setProperty('--wipe-accent', wipe.accent);
+  var headTitle = document.createElement('div');
+  headTitle.className = 'faults-wipe-name';
+  headTitle.textContent = (wipe.icon ? wipe.icon + ' ' : '') + 'Wipe ' + wipe.label;
+  var headDates = document.createElement('div');
+  headDates.className = 'faults-wipe-dates';
+  headDates.textContent = fmtDate(wipe.start) + ' → ' + fmtDate(wipe.end) + (pick.active ? ' · En curso' : ' · Próximo');
+  head.appendChild(headTitle);
+  head.appendChild(headDates);
+  panel.appendChild(head);
+
+  // Apelaciones pendientes (solo las ve y resuelve Gru)
+  if (iAmGru) {
+    var pending = pointRows.filter(function(p){ return p.wipeId === wipe.id && p.appealStatus === 'pendiente'; });
+    if (pending.length) {
+      var appealsBox = document.createElement('div');
+      appealsBox.className = 'appeals-box';
+      var appealsTitle = document.createElement('div');
+      appealsTitle.className = 'appeals-title';
+      appealsTitle.textContent = '⚖️ Apelaciones pendientes de tu sentencia (' + pending.length + ')';
+      appealsBox.appendChild(appealsTitle);
+      pending.forEach(function(p){
+        var u = userByUsername(p.username);
+        var by = p.reportedBy ? (userByUsername(p.reportedBy) || { alias: p.reportedBy }).alias : '?';
+        var item = document.createElement('div');
+        item.className = 'appeal-item';
+        var txt = document.createElement('div');
+        txt.className = 'appeal-text';
+        txt.innerHTML = '<strong>' + (u ? u.alias : p.username) + '</strong> apela una ' +
+          POINT_LABELS.falta[p.weight] + ' (puesta por ' + by + '): «' + p.appealText + '»';
+        var btns = document.createElement('div');
+        btns.className = 'appeal-btns';
+        var ok = document.createElement('button');
+        ok.type = 'button';
+        ok.className = 'fault-btn is-clear';
+        ok.textContent = '✓ Aceptar';
+        ok.title = 'La falta se retira';
+        ok.addEventListener('click', function(){ resolveAppeal(p.id, true); });
+        var no = document.createElement('button');
+        no.type = 'button';
+        no.className = 'fault-btn is-grave';
+        no.textContent = '✕ Rechazar';
+        no.title = 'La falta se queda y ya no podrá volver a apelarla';
+        no.addEventListener('click', function(){ resolveAppeal(p.id, false); });
+        btns.appendChild(ok);
+        btns.appendChild(no);
+        item.appendChild(txt);
+        item.appendChild(btns);
+        appealsBox.appendChild(item);
+      });
+      panel.appendChild(appealsBox);
+    }
+  }
+
+  pick.people.forEach(function(username){
+    var u = userByUsername(username);
+    var isGruUser = u && isGru(u);
+    var isMine = currentUser && username === currentUser.username;
+    var mine = pointRows.filter(function(p){ return p.wipeId === wipe.id && p.username === username; });
+    var faults = mine.filter(function(p){ return p.kind === 'falta'; });
+    var merits = mine.filter(function(p){ return p.kind === 'merito'; });
+    var faultTotal = faults.reduce(function(s, p){ return s + p.weight; }, 0);
+    var meritTotal = merits.reduce(function(s, p){ return s + p.weight; }, 0);
+
+    var row = document.createElement('div');
+    row.className = 'fault-row' + (faultTotal >= FAULT_LIMIT - 2 && !isGruUser ? ' is-danger' : '');
+
+    // Identidad
+    var ident = document.createElement('div');
+    ident.className = 'fault-ident';
+    ident.appendChild(makeMiniAvatar(u));
+    var nm = document.createElement('span');
+    nm.className = 'fault-name';
+    nm.textContent = u ? u.alias : username;
+    ident.appendChild(nm);
+    row.appendChild(ident);
+
+    if (isGruUser) {
+      var immune = document.createElement('div');
+      immune.className = 'fault-immune';
+      immune.textContent = '👑 Intocable';
+      row.appendChild(immune);
+      panel.appendChild(row);
+      return;
+    }
+
+    // Contadores: faltas y méritos, cada uno con su barra
+    var meters = document.createElement('div');
+    meters.className = 'fault-meters';
+    meters.appendChild(buildPointsMeter(faultTotal, FAULT_LIMIT, 'falta'));
+    meters.appendChild(buildPointsMeter(meritTotal, MERIT_LIMIT, 'merito'));
+    row.appendChild(meters);
+
+    // Chips de cada punto
+    if (mine.length) row.appendChild(buildPointChips(mine, iAmGru, isMine));
+
+    // Botones de acción
+    var actions = document.createElement('div');
+    actions.className = 'fault-actions';
+    [
+      { kind: 'falta',  weight: 1, cls: 'is-leve',  txt: '+ Leve',   tip: 'Falta leve · 1 punto' },
+      { kind: 'falta',  weight: 2, cls: 'is-grave', txt: '+ Grave',  tip: 'Falta grave · 2 puntos' },
+      { kind: 'merito', weight: 1, cls: 'is-merit', txt: '+ Mérito', tip: 'Mérito · 1 punto' },
+      { kind: 'merito', weight: 2, cls: 'is-merit', txt: '+ Hazaña', tip: 'Hazaña · 2 puntos' }
+    ].forEach(function(cfg){
+      if (isMine && !iAmGru) return; // no puedes votarte a ti mismo
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'fault-btn ' + cfg.cls;
+      b.textContent = cfg.txt;
+      b.title = cfg.tip;
+      b.addEventListener('click', function(){ addPoint(wipe.id, username, cfg.kind, cfg.weight); });
+      actions.appendChild(b);
+    });
+    if (iAmGru && faults.length) {
+      var btnClear = document.createElement('button');
+      btnClear.type = 'button';
+      btnClear.className = 'fault-btn is-clear';
+      btnClear.textContent = 'Perdonar';
+      btnClear.title = 'Quitar todas sus faltas de este wipe (solo Gru)';
+      btnClear.addEventListener('click', function(){ clearPoints(wipe.id, username, 'falta'); });
+      actions.appendChild(btnClear);
+    }
+    row.appendChild(actions);
+
+    panel.appendChild(row);
+  });
+
+  var legend = document.createElement('div');
+  legend.className = 'faults-legend';
+  legend.textContent = '🟨 Leve 1 pt · 🟥 Grave 2 pts → a los ' + FAULT_LIMIT + ' se baja de rango · ' +
+    '🟩 Mérito 1 pt · 🌟 Hazaña 2 pts → a los ' + MERIT_LIMIT + ' se sube · ' +
+    '1 voto cada 3 h por persona · pulsa tus faltas para apelar ante Gru.';
+  panel.appendChild(legend);
+}
+
+/* ============================================================
    LOGIN / LOGOUT / ARRANQUE
    ============================================================ */
 async function showApp(user) {
@@ -1692,8 +2042,11 @@ async function showApp(user) {
 
   await fetchUsers();
   await fetchBoard();
+  await fetchWipeSignups();
+  await fetchPoints();
   renderMembers();
   renderBoard();
+  renderFaults();
 
   loginScreen.style.display = 'none';
   appShell.style.display = 'flex';
