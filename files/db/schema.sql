@@ -58,6 +58,24 @@ create table if not exists raid_list (
   qty            int  not null default 1
 );
 
+-- Amonestaciones y méritos: puntos por wipe. Las faltas (leve = 1,
+-- grave = 2) degradan el rango al llegar a 10 puntos; los méritos
+-- (mérito = 1, hazaña = 2) lo ascienden al llegar a 10. Las faltas
+-- se pueden apelar una vez; Gru decide si acepta o rechaza.
+create table if not exists wipe_points (
+  id            bigint generated always as identity primary key,
+  wipe_id       text not null,
+  username      text not null references users(username) on delete cascade,
+  kind          text not null check (kind in ('falta', 'merito')),
+  weight        int  not null default 1 check (weight in (1, 2)),
+  reported_by   text,
+  appeal_status text check (appeal_status in ('pendiente', 'rechazada')),
+  appeal_text   text,
+  ts            bigint not null
+);
+
+create index if not exists wipe_points_wipe_user_idx on wipe_points (wipe_id, username);
+
 create table if not exists enemies (
   id         bigint generated always as identity primary key,
   server_id  text not null,
@@ -76,5 +94,6 @@ alter table users        enable row level security;
 alter table board_notes  enable row level security;
 alter table hall_images  enable row level security;
 alter table wipe_signups enable row level security;
+alter table wipe_points  enable row level security;
 alter table raid_list    enable row level security;
 alter table enemies      enable row level security;
