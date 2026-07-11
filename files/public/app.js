@@ -1946,7 +1946,6 @@ function renderFaults() {
 
   pick.people.forEach(function(username){
     var u = userByUsername(username);
-    var isGruUser = u && isGru(u);
     var isMine = currentUser && username === currentUser.username;
     var mine = pointRows.filter(function(p){ return p.wipeId === wipe.id && p.username === username; });
     var faults = mine.filter(function(p){ return p.kind === 'falta'; });
@@ -1955,7 +1954,7 @@ function renderFaults() {
     var meritTotal = merits.reduce(function(s, p){ return s + p.weight; }, 0);
 
     var row = document.createElement('div');
-    row.className = 'fault-row' + (faultTotal >= FAULT_LIMIT - 2 && !isGruUser ? ' is-danger' : '');
+    row.className = 'fault-row' + (faultTotal >= FAULT_LIMIT - 2 ? ' is-danger' : '');
 
     // Identidad
     var ident = document.createElement('div');
@@ -1966,15 +1965,6 @@ function renderFaults() {
     nm.textContent = u ? u.alias : username;
     ident.appendChild(nm);
     row.appendChild(ident);
-
-    if (isGruUser) {
-      var immune = document.createElement('div');
-      immune.className = 'fault-immune';
-      immune.textContent = '👑 Intocable';
-      row.appendChild(immune);
-      panel.appendChild(row);
-      return;
-    }
 
     // Contadores: faltas y méritos, cada uno con su barra
     var meters = document.createElement('div');
@@ -1995,7 +1985,7 @@ function renderFaults() {
       { kind: 'merito', weight: 1, cls: 'is-merit', txt: '+ Mérito', tip: 'Mérito · 1 punto' },
       { kind: 'merito', weight: 2, cls: 'is-merit', txt: '+ Hazaña', tip: 'Hazaña · 2 puntos' }
     ].forEach(function(cfg){
-      if (isMine && !iAmGru) return; // no puedes votarte a ti mismo
+      if (isMine) return; // no puedes votarte a ti mismo
       var b = document.createElement('button');
       b.type = 'button';
       b.className = 'fault-btn ' + cfg.cls;
