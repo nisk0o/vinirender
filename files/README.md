@@ -123,6 +123,48 @@ ya tenga una cuenta en la app y le haya vinculado su email.
 
 ---
 
+## 3ter. Tracking online/offline de enemigos con BattleMetrics
+
+La pestaña **Enemigos** puede decirte en directo quién está conectado
+usando la API pública de [BattleMetrics](https://www.battlemetrics.com),
+un tracker gratuito que monitoriza casi todos los servidores de Rust.
+
+**No hace falta cuenta ni token para que funcione.** Solo hay que
+decirle a la app qué servidor de BattleMetrics corresponde a cada
+servidor nuestro:
+
+1. Si tu base de datos ya existía, ejecuta en el SQL Editor de
+   Supabase las líneas nuevas de `schema.sql` (la tabla
+   `server_settings`, la columna `last_seen` de `enemies` y su
+   `alter table ... enable row level security`). Son seguras: no
+   tocan ningún dato existente.
+2. Busca el servidor en battlemetrics.com (arriba tienen un
+   buscador; por ejemplo "Rusticated Trio"). Entra en su página y
+   copia la URL, que será algo como
+   `https://www.battlemetrics.com/servers/rust/1234567`.
+3. En la app, pestaña **Enemigos**, elige el servidor y pega esa URL
+   en la caja "Vincula este servidor con BattleMetrics". La app
+   comprueba al momento que el ID existe.
+4. Listo: cada enemigo fichado mostrará 🟢 En línea / ⚫ Desconectado,
+   con la última vez que lo vimos conectado, y cada equipo mostrará
+   cuántos de los suyos están online. Se actualiza solo cada minuto
+   mientras la pestaña esté abierta.
+
+**Cómo funciona por dentro:** el backend pide a BattleMetrics la
+lista de jugadores online del servidor (una sola petición por
+servidor, con caché de 60 segundos compartida entre todos los
+miembros) y compara los nombres con los enemigos fichados, ignorando
+mayúsculas/minúsculas. Por eso es importante escribir el nombre del
+enemigo **exactamente como aparece en el juego**.
+
+**Token opcional:** si algún día BattleMetrics os frena por exceso de
+peticiones (raro con la caché), crea un token gratis en
+[battlemetrics.com/developers](https://www.battlemetrics.com/developers)
+y añádelo en Render como variable de entorno `BATTLEMETRICS_TOKEN`.
+Con token el límite de peticiones es mucho más alto.
+
+---
+
 ## Cosas a tener en cuenta con el plan gratis
 
 - **Render (free):** el servicio se "duerme" tras 15 minutos sin

@@ -161,7 +161,68 @@ function publicUser(u) {
 function rowToNote(row) { return { id: row.id, username: row.username, text: row.text, ts: Number(row.ts) }; }
 function rowToImage(row) { return { id: row.id, username: row.username, dataUrl: row.data_url, ts: Number(row.ts) }; }
 function rowToRaid(row) { return { id: row.id, structureId: row.structure_id, explosiveKey: row.explosive_key, qty: row.qty }; }
-function rowToEnemy(row) { return { id: row.id, serverId: row.server_id, name: row.name, steamId: row.steam_id || '', team: row.team || '', ts: Number(row.ts) }; }
+function rowToEnemy(row) { return { id: row.id, serverId: row.server_id, name: row.name, steamId: row.steam_id || '', team: row.team || '', lastSeen: row.last_seen ? Number(row.last_seen) : null, ts: Number(row.ts) }; }
+
+// ------------------------------------------------------------
+// BattleMetrics: consultamos su API pública SIEMPRE desde el
+// backend (nunca desde el navegador). Un solo endpoint nos da
+// el servidor + la lista completa de jugadores online, así que
+// con UNA petición sabemos el estado de todos los enemigos.
+// Cacheamos la respuesta 60 segundos por servidor para respetar
+// su límite de peticiones aunque toda la Zerg tenga la pestaña
+// abierta a la vez.
+// ------------------------------------------------------------
+const BM_CACHE_MS = 60 * 1000;
+const bmCache = {}; // bmServerId -> { ts, data }
+
+async function fetchBmServer(bmServerId) {
+  const cached = bmCache[bmServerId];
+  if (cached && Date.now() - cached.ts < BM_CACHE_MS) return cached.data;
+
+  const headers = { Accept: 'application/json' };
+  // Token opcional: sin él funciona igual, pero con él BattleMetrics
+  // nos da un límite de peticiones más generoso.
+  if (process.env.BATTLEMETRICS_TOKEN) {
+    headers.Authorization = `Bearer ${process.env.BATTLEMETRICS_TOKEN}`;
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000);
+  let res;
+  try {
+    const url = `https://api.battlemetrics.com/servers/${encodeURIComponent(bmServerId)}?include=player`;
+    res = await fetch(url, { headers, signal: controller.signal });
+  } catch (e) {
+    throw new Error('No se pudo contactar con BattleMetrics (¿caído o sin red?). Reintenta en un momento.');
+  } finally {
+    clearTimeout(timeout);
+  }
+
+  if (!res.ok) {
+    if (res.status === 404) throw new Error('BattleMetrics no encuentra ningún servidor con ese ID. Revisa la URL en battlemetrics.com.');
+    if (res.status === 401) throw new Error('BattleMetrics ha rechazado el token (BATTLEMETRICS_TOKEN). Revísalo o bórralo de las variables de entorno.');
+    if (res.status === 429) throw new Error('BattleMetrics nos ha frenado por exceso de peticiones. Espera un minuto.');
+    throw new Error(`BattleMetrics respondió con error ${res.status}.`);
+  }
+
+  const json = await res.json();
+  const attrs = (json.data && json.data.attributes) || {};
+  const online = (json.included || [])
+    .filter(item => item.type === 'player' && item.attributes && item.attributes.name)
+    .map(item => item.attributes.name);
+
+  const data = {
+    bmServerId,
+    serverName: attrs.name || '',
+    status: attrs.status || 'unknown',
+    playersOnline: typeof attrs.players === 'number' ? attrs.players : online.length,
+    maxPlayers: attrs.maxPlayers || null,
+    online,
+    fetchedAt: Date.now()
+  };
+  bmCache[bmServerId] = { ts: Date.now(), data };
+  return data;
+}
 function rowToPoint(row) {
   return {
     id: row.id, wipeId: row.wipe_id, username: row.username,
@@ -727,6 +788,78 @@ async function handleApi(req, res, pathname) {
     const id = Number(m[1]);
     await db.remove('raid_list', `id=eq.${id}`);
     return sendJSON(res, 200, { ok: true });
+  }
+
+  // ---- BATTLEMETRICS: vínculo por servidor + estado online ----
+  if (pathname === '/api/server-settings' && method === 'GET') {
+    if (!requireAuth()) return;
+    const rows = await db.select('server_settings', 'select=*');
+    const settings = {};
+    (rows || []).forEach(r => { settings[r.server_id] = r.bm_server_id || ''; });
+    return sendJSON(res, 200, { settings });
+  }
+  if (pathname === '/api/server-settings' && method === 'POST') {
+    if (!requireAuth()) return;
+    let body;
+    try { body = await readBody(req); } catch (e) { return sendJSON(res, 400, { error: 'Petición inválida.' }); }
+    const serverId = String(body.serverId || '').trim();
+    let bmServerId = String(body.bmServerId || '').trim();
+    // Aceptamos tanto el número a pelo como la URL entera de
+    // battlemetrics.com (le sacamos el número nosotros).
+    const urlMatch = bmServerId.match(/battlemetrics\.com\/servers\/[^/]+\/(\d+)/i);
+    if (urlMatch) bmServerId = urlMatch[1];
+    if (!serverId) return sendJSON(res, 400, { error: 'Falta el servidor.' });
+    if (bmServerId && !/^\d{1,12}$/.test(bmServerId)) {
+      return sendJSON(res, 400, { error: 'Eso no parece un ID de BattleMetrics. Pega la URL del servidor (battlemetrics.com/servers/rust/XXXXXXX) o solo el número final.' });
+    }
+    // Antes de guardar, comprobamos que el servidor existe de verdad
+    // en BattleMetrics para avisar al momento si el ID está mal.
+    if (bmServerId) {
+      try { await fetchBmServer(bmServerId); }
+      catch (err) { return sendJSON(res, 400, { error: err.message }); }
+    }
+    await db.upsert('server_settings', { server_id: serverId, bm_server_id: bmServerId }, 'server_id');
+    return sendJSON(res, 200, { serverId, bmServerId });
+  }
+  if (pathname === '/api/enemies/status' && method === 'GET') {
+    if (!requireAuth()) return;
+    const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+    const serverId = String(url.searchParams.get('serverId') || '').trim();
+    if (!serverId) return sendJSON(res, 400, { error: 'Falta el servidor.' });
+
+    const srows = await db.select('server_settings', `select=*&server_id=eq.${encodeURIComponent(serverId)}`);
+    const bmServerId = srows && srows[0] ? (srows[0].bm_server_id || '') : '';
+    if (!bmServerId) return sendJSON(res, 200, { linked: false });
+
+    let bm;
+    try { bm = await fetchBmServer(bmServerId); }
+    catch (err) { return sendJSON(res, 502, { error: err.message }); }
+
+    // Comparamos nombres ignorando mayúsculas/minúsculas y espacios
+    // sobrantes: es lo único que BattleMetrics expone públicamente.
+    const onlineSet = new Set(bm.online.map(n => n.trim().toLowerCase()));
+    const erows = await db.select('enemies', `select=*&server_id=eq.${encodeURIComponent(serverId)}`);
+    const enemies = (erows || []).map(rowToEnemy);
+    const onlineIds = enemies
+      .filter(en => onlineSet.has(en.name.trim().toLowerCase()))
+      .map(en => en.id);
+
+    // Apuntamos la "última vez visto" de los que están online ahora,
+    // en una sola petición a Supabase.
+    if (onlineIds.length) {
+      await db.update('enemies', `id=in.(${onlineIds.join(',')})`, { last_seen: Date.now() });
+    }
+
+    return sendJSON(res, 200, {
+      linked: true,
+      bmServerId,
+      serverName: bm.serverName,
+      status: bm.status,
+      playersOnline: bm.playersOnline,
+      maxPlayers: bm.maxPlayers,
+      onlineIds,
+      fetchedAt: bm.fetchedAt
+    });
   }
 
   // ---- ENEMIGOS (por servidor, agrupados por equipo) ----
