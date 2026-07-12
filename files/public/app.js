@@ -457,10 +457,194 @@ function setupStats() {
    (persistidos en el servidor; sin fuente externa todavía)
    ============================================================ */
 var enemiesSelectedServerId = SERVERS[0].id;
+var serverSettings = {};        // serverId -> ID de BattleMetrics (o '')
+var enemiesStatus = null;       // último /enemies/status del servidor actual
+var enemiesStatusError = null;  // mensaje de error de BattleMetrics, si lo hubo
+var enemiesStatusTimer = null;  // intervalo de auto-refresco (60 s)
+var enemiesBmEditing = false;   // ¿está abierto el campo para (re)vincular?
 
 async function fetchEnemies() {
   var data = await api('/enemies');
   enemiesList = data.enemies;
+}
+
+async function fetchServerSettings() {
+  var data = await api('/server-settings');
+  serverSettings = data.settings || {};
+}
+
+async function fetchEnemiesStatus() {
+  var sid = enemiesSelectedServerId;
+  enemiesStatusError = null;
+  if (!serverSettings[sid]) { enemiesStatus = null; return; }
+  try {
+    var data = await api('/enemies/status?serverId=' + encodeURIComponent(sid));
+    if (sid !== enemiesSelectedServerId) return; // el usuario cambió de servidor mientras cargaba
+    enemiesStatus = data.linked ? data : null;
+  } catch (err) {
+    if (sid !== enemiesSelectedServerId) return;
+    enemiesStatus = null;
+    enemiesStatusError = err.message;
+  }
+}
+
+// Refresca el estado online y repinta. Se llama al entrar en la
+// pestaña, al cambiar de servidor, al pulsar "Actualizar" y cada
+// 60 segundos en segundo plano.
+async function refreshEnemiesStatus() {
+  await fetchEnemiesStatus();
+  try { await fetchEnemies(); } catch (e) { /* mantenemos la lista que ya teníamos */ }
+  renderEnemiesBmBox();
+  renderEnemiesPanel();
+}
+
+function startEnemiesAutoRefresh() {
+  stopEnemiesAutoRefresh();
+  enemiesStatusTimer = setInterval(function(){
+    var v = document.getElementById('view-enemigos');
+    // Solo refrescamos si la pestaña Enemigos está a la vista y la
+    // ventana no está en segundo plano (para no gastar peticiones).
+    if (!v || !v.classList.contains('active') || document.hidden) return;
+    refreshEnemiesStatus();
+  }, 60000);
+}
+
+function stopEnemiesAutoRefresh() {
+  if (enemiesStatusTimer) { clearInterval(enemiesStatusTimer); enemiesStatusTimer = null; }
+}
+
+function bmTimeAgo(ts) {
+  var diff = Math.max(0, Date.now() - ts);
+  var mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'hace un momento';
+  if (mins < 60) return 'hace ' + mins + ' min';
+  var hours = Math.floor(mins / 60);
+  if (hours < 24) return 'hace ' + hours + ' h';
+  var days = Math.floor(hours / 24);
+  return 'hace ' + days + ' día' + (days === 1 ? '' : 's');
+}
+
+function renderEnemiesBmBox() {
+  var box = document.getElementById('enemy-bm-box');
+  if (!box) return;
+  box.innerHTML = '';
+
+  var sid = enemiesSelectedServerId;
+  var linked = !!serverSettings[sid];
+  var row = document.createElement('div');
+  row.className = 'enemy-bm-row';
+
+  // --- Modo edición: pegar la URL/ID de BattleMetrics ---
+  if (!linked || enemiesBmEditing) {
+    var text = document.createElement('span');
+    text.className = 'enemy-bm-text';
+    text.textContent = linked
+      ? 'Cambiar el vínculo de BattleMetrics de este servidor:'
+      : '🔗 Vincula este servidor con BattleMetrics para ver quién está online:';
+    row.appendChild(text);
+
+    var input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'enemy-bm-input';
+    input.placeholder = 'Pega la URL: battlemetrics.com/servers/rust/1234567';
+    if (linked) input.value = serverSettings[sid];
+    row.appendChild(input);
+
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn enemy-bm-btn';
+    btn.textContent = 'Vincular';
+    btn.addEventListener('click', async function(){
+      var value = input.value.trim();
+      if (!value) return;
+      btn.disabled = true;
+      btn.textContent = 'Comprobando…';
+      try {
+        var resp = await api('/server-settings', { method: 'POST', body: { serverId: sid, bmServerId: value } });
+        serverSettings[sid] = resp.bmServerId;
+      } catch (err) {
+        btn.disabled = false;
+        btn.textContent = 'Vincular';
+        showToast(err.message);
+        return;
+      }
+      enemiesBmEditing = false;
+      showToast('Servidor vinculado con BattleMetrics', 'success');
+      refreshEnemiesStatus();
+    });
+    row.appendChild(btn);
+
+    if (linked) {
+      var cancel = document.createElement('button');
+      cancel.type = 'button';
+      cancel.className = 'enemy-bm-link';
+      cancel.textContent = 'Cancelar';
+      cancel.addEventListener('click', function(){
+        enemiesBmEditing = false;
+        renderEnemiesBmBox();
+      });
+      row.appendChild(cancel);
+    }
+
+    box.appendChild(row);
+    return;
+  }
+
+  // --- Modo estado: vinculado, mostramos qué sabemos ---
+  var dot = document.createElement('span');
+  dot.className = 'enemy-bm-dot';
+  var text = document.createElement('span');
+  text.className = 'enemy-bm-text';
+
+  if (enemiesStatusError) {
+    dot.classList.add('err');
+    text.textContent = enemiesStatusError;
+  } else if (!enemiesStatus) {
+    dot.classList.add('offline');
+    text.textContent = 'Consultando BattleMetrics…';
+  } else {
+    var s = enemiesStatus;
+    dot.classList.add(s.status === 'online' ? 'online' : 'err');
+    var name = document.createElement('strong');
+    name.textContent = s.serverName || 'Servidor';
+    text.appendChild(name);
+    var rest = ' · ' + s.playersOnline + (s.maxPlayers ? '/' + s.maxPlayers : '') + ' jugadores';
+    if (s.status !== 'online') rest += ' · ⚠️ servidor ' + (s.status === 'offline' ? 'caído' : s.status);
+    text.appendChild(document.createTextNode(rest));
+  }
+
+  row.appendChild(dot);
+  row.appendChild(text);
+
+  if (enemiesStatus && enemiesStatus.fetchedAt) {
+    var meta = document.createElement('span');
+    meta.className = 'enemy-bm-meta';
+    meta.textContent = 'actualizado ' + bmTimeAgo(enemiesStatus.fetchedAt);
+    row.appendChild(meta);
+  }
+
+  var spacer = document.createElement('span');
+  spacer.className = 'enemy-bm-spacer';
+  row.appendChild(spacer);
+
+  var refreshBtn = document.createElement('button');
+  refreshBtn.type = 'button';
+  refreshBtn.className = 'enemy-bm-link';
+  refreshBtn.textContent = '↻ Actualizar';
+  refreshBtn.addEventListener('click', function(){ refreshEnemiesStatus(); });
+  row.appendChild(refreshBtn);
+
+  var editBtn = document.createElement('button');
+  editBtn.type = 'button';
+  editBtn.className = 'enemy-bm-link';
+  editBtn.textContent = 'Cambiar vínculo';
+  editBtn.addEventListener('click', function(){
+    enemiesBmEditing = true;
+    renderEnemiesBmBox();
+  });
+  row.appendChild(editBtn);
+
+  box.appendChild(row);
 }
 
 function renderEnemiesServerPicker() {
@@ -481,9 +665,14 @@ function renderEnemiesServerPicker() {
     btn.appendChild(name);
     btn.addEventListener('click', function(){
       enemiesSelectedServerId = s.id;
+      enemiesStatus = null;
+      enemiesStatusError = null;
+      enemiesBmEditing = false;
       renderEnemiesServerPicker();
       renderEnemyTeamSelect();
+      renderEnemiesBmBox();
       renderEnemiesPanel();
+      refreshEnemiesStatus();
     });
     picker.appendChild(btn);
   });
@@ -597,6 +786,21 @@ function renderEnemiesPanel() {
     var groupHead = document.createElement('div');
     groupHead.className = 'enemy-team-head';
     groupHead.textContent = team === '' ? '🎯 Sin equipo' : '⚔️ ' + team;
+
+    // Si BattleMetrics está vinculado, mostramos cuántos del equipo
+    // están conectados ahora mismo.
+    if (enemiesStatus && enemiesStatus.onlineIds) {
+      var teamOnline = teamEnemies.filter(function(e){
+        return enemiesStatus.onlineIds.indexOf(e.id) !== -1;
+      }).length;
+      if (teamOnline > 0) {
+        var onlineTag = document.createElement('span');
+        onlineTag.className = 'enemy-team-online';
+        onlineTag.textContent = '🟢 ' + teamOnline + '/' + teamEnemies.length + ' en línea';
+        groupHead.appendChild(onlineTag);
+      }
+    }
+
     group.appendChild(groupHead);
 
     var grid = document.createElement('div');
@@ -613,6 +817,23 @@ function renderEnemiesPanel() {
       var steam = document.createElement('div');
       steam.className = 'enemy-card-steam';
       steam.textContent = en.steamId ? en.steamId : 'Sin SteamID';
+
+      // Badge de estado (solo si el servidor está vinculado a BM)
+      var statusEl = null;
+      if (enemiesStatus && enemiesStatus.onlineIds) {
+        statusEl = document.createElement('div');
+        statusEl.className = 'enemy-card-status';
+        if (enemiesStatus.onlineIds.indexOf(en.id) !== -1) {
+          statusEl.classList.add('online');
+          statusEl.textContent = '🟢 En línea ahora';
+          card.classList.add('is-online');
+        } else {
+          statusEl.classList.add('offline');
+          statusEl.textContent = en.lastSeen
+            ? '⚫ Desconectado · visto ' + bmTimeAgo(en.lastSeen)
+            : '⚫ Desconectado';
+        }
+      }
 
       var actions = document.createElement('div');
       actions.className = 'enemy-card-actions';
@@ -646,6 +867,7 @@ function renderEnemiesPanel() {
 
       card.appendChild(name);
       card.appendChild(steam);
+      if (statusEl) card.appendChild(statusEl);
       card.appendChild(actions);
       grid.appendChild(card);
     });
@@ -658,6 +880,7 @@ function renderEnemiesPanel() {
 function setupEnemies() {
   renderEnemiesServerPicker();
   renderEnemyTeamSelect();
+  renderEnemiesBmBox();
   renderEnemiesPanel();
 
   document.getElementById('enemy-team-select').addEventListener('change', toggleNewTeamField);
@@ -1278,7 +1501,16 @@ function setupNav() {
       if (view === 'zerg') renderOrgchart();
       if (view === 'wipes') { wipeWeekOffset = 0; await fetchWipeSignups(); renderWipes(); }
       if (view === 'stats') renderStatsPanel();
-      if (view === 'enemigos') { await fetchEnemies(); renderEnemyTeamSelect(); renderEnemiesPanel(); }
+      if (view === 'enemigos') {
+        await Promise.all([fetchEnemies(), fetchServerSettings()]);
+        renderEnemyTeamSelect();
+        renderEnemiesBmBox();
+        renderEnemiesPanel();
+        refreshEnemiesStatus();
+        startEnemiesAutoRefresh();
+      } else {
+        stopEnemiesAutoRefresh();
+      }
       if (view === 'raidcalc') { await fetchRaid(); renderRaidCompare(); renderRaidList(); }
       if (view === 'roles') refreshWheelsIfIdle();
     });

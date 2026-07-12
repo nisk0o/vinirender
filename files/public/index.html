@@ -296,6 +296,31 @@ button.fault-chip:hover { border-color: #ff4d4d; background: rgba(255,77,77,0.15
 .enemy-add-newteam { flex: 1 1 160px; min-width: 140px; }
 .enemy-add-newteam.is-hidden { display: none; }
 .enemy-add-submit { flex: 0 0 auto; }
+/* ---- Enemigos: panel BattleMetrics ---- */
+.enemy-bm-box { border: 1px solid rgba(255,255,255,0.08); border-radius: var(--radius-md); background: var(--color-bg-raised); padding: 0.85rem 1.3rem; margin-bottom: 1.25rem; }
+.enemy-bm-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.7rem; }
+.enemy-bm-dot { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 auto; }
+.enemy-bm-dot.online { background: #43d17a; box-shadow: 0 0 8px rgba(67,209,122,0.7); }
+.enemy-bm-dot.offline { background: var(--color-text-faint); }
+.enemy-bm-dot.err { background: var(--color-danger); box-shadow: 0 0 8px rgba(255,80,80,0.5); }
+.enemy-bm-text { font-family: var(--font-mono); font-size: 0.74rem; color: var(--color-text-dim); letter-spacing: 0.02em; }
+.enemy-bm-text strong { color: var(--color-text); font-weight: 600; }
+.enemy-bm-meta { font-family: var(--font-mono); font-size: 0.68rem; color: var(--color-text-faint); }
+.enemy-bm-spacer { flex: 1 1 auto; }
+.enemy-bm-input { background: var(--color-bg); border: 1.5px solid rgba(255,255,255,0.1); border-radius: var(--radius-sm); color: var(--color-text); font-family: var(--font-mono); font-size: 0.78rem; padding: 0.5rem 0.7rem; flex: 1 1 280px; min-width: 220px; }
+.enemy-bm-input:focus { outline: none; border-color: var(--color-fucsia); }
+.enemy-bm-btn { flex: 0 0 auto; }
+.enemy-bm-link { background: none; border: none; color: var(--color-text-faint); font-family: var(--font-mono); font-size: 0.68rem; cursor: pointer; text-decoration: underline; padding: 0.2rem; }
+.enemy-bm-link:hover { color: var(--color-fucsia-glow); }
+
+/* ---- Enemigos: estado online/offline en las tarjetas ---- */
+.enemy-card-status { font-family: var(--font-mono); font-size: 0.68rem; letter-spacing: 0.02em; }
+.enemy-card-status.online { color: #43d17a; }
+.enemy-card-status.offline { color: var(--color-text-faint); }
+.enemy-card.is-online { border-color: rgba(67,209,122,0.45); }
+.enemy-card.is-online:hover { border-color: rgba(67,209,122,0.75); }
+.enemy-team-online { font-family: var(--font-mono); font-size: 0.68rem; color: #43d17a; margin-left: 0.6rem; font-weight: normal; }
+
 .enemy-empty { text-align: center; padding: 3rem 1rem; color: var(--color-text-faint); font-family: var(--font-mono); font-size: 0.85rem; }
 .enemy-team-group { margin-bottom: 1.5rem; }
 .enemy-team-head { font-family: var(--font-display); font-size: 0.95rem; letter-spacing: 0.03em; color: var(--color-fucsia-glow); margin-bottom: 0.7rem; padding-bottom: 0.4rem; border-bottom: 1px solid rgba(255,255,255,0.08); }
@@ -718,10 +743,12 @@ button.fault-chip:hover { border-color: #ff4d4d; background: rgba(255,77,77,0.15
       <div class="taquilla-head">
         <p class="welcome-eyebrow">🎯 Tracking de wipe</p>
         <h1 class="welcome-title">Control de <span>Enemigos</span></h1>
-        <p class="welcome-text">Elige el servidor y apunta a los enemigos del wipe, agrupándolos por equipo. Todavía no está conectado a ninguna API del juego (estado online/offline en directo), pero ya podéis llevar el registro a mano.</p>
+        <p class="welcome-text">Elige el servidor y apunta a los enemigos del wipe, agrupándolos por equipo. Vincula cada servidor con su página de BattleMetrics y verás en directo quién está online, quién no, y cuándo se conectó por última vez.</p>
       </div>
 
       <div class="stats-server-picker" id="enemies-server-picker"></div>
+
+      <div class="enemy-bm-box" id="enemy-bm-box"></div>
 
       <div class="enemy-add-form">
         <div class="enemy-add-title">➕ Añadir enemigo</div>
