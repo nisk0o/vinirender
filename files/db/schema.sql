@@ -85,6 +85,20 @@ create table if not exists enemies (
   ts         bigint not null
 );
 
+-- Última vez que vimos online a cada enemigo en BattleMetrics
+-- (milisegundos desde epoch). Si tu tabla "enemies" ya existía,
+-- esta línea añade la columna sin tocar ningún dato.
+alter table enemies add column if not exists last_seen bigint;
+
+-- Vínculo de cada servidor de la app con su servidor en
+-- BattleMetrics (el número que sale en la URL, p. ej.
+-- battlemetrics.com/servers/rust/1234567 → "1234567").
+-- Se rellena desde la propia pestaña Enemigos de la app.
+create table if not exists server_settings (
+  server_id    text primary key,
+  bm_server_id text not null default ''
+);
+
 -- Row Level Security: la app solo habla con Supabase desde el
 -- backend Node usando la service_role key, que se salta RLS por
 -- diseño. Aun así dejamos RLS activada y sin políticas públicas,
@@ -97,3 +111,4 @@ alter table wipe_signups enable row level security;
 alter table wipe_points  enable row level security;
 alter table raid_list    enable row level security;
 alter table enemies      enable row level security;
+alter table server_settings enable row level security;
