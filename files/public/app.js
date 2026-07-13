@@ -91,6 +91,7 @@ var boardNotes = [];
 var wipeSignups = {};
 var raidList = [];
 var enemiesList = [];
+var enemyTeamsList = [];
 
 /* ============================================================
    MIEMBROS
@@ -468,6 +469,11 @@ async function fetchEnemies() {
   enemiesList = data.enemies;
 }
 
+async function fetchEnemyTeams() {
+  var data = await api('/enemy-teams');
+  enemyTeamsList = data.teams;
+}
+
 async function fetchServerSettings() {
   var data = await api('/server-settings');
   serverSettings = data.settings || {};
@@ -682,14 +688,27 @@ function enemiesForServer() {
   return enemiesList.filter(function(e){ return e.serverId === enemiesSelectedServerId; });
 }
 
+// Equipos registrados (tabla enemy_teams) del servidor seleccionado.
+function enemyTeamsForServer() {
+  return enemyTeamsList
+    .filter(function(t){ return t.serverId === enemiesSelectedServerId; })
+    .sort(function(a,b){ return a.name.localeCompare(b.name); });
+}
+
+// Nombres de equipo a mostrar: los registrados + los que aún vivan
+// solo como texto en algún enemigo (datos de antes de esta mejora).
 function enemyTeams() {
-  var teams = [];
+  var teams = enemyTeamsForServer().map(function(t){ return t.name; });
   enemiesForServer().forEach(function(e){
     var t = e.team || '';
     if (t && teams.indexOf(t) === -1) teams.push(t);
   });
   teams.sort(function(a,b){ return a.localeCompare(b); });
   return teams;
+}
+
+function findEnemyTeam(name) {
+  return enemyTeamsForServer().find(function(t){ return t.name === name; }) || null;
 }
 
 function renderEnemyTeamSelect() {
@@ -710,22 +729,8 @@ function renderEnemyTeamSelect() {
     select.appendChild(opt);
   });
 
-  var newOpt = document.createElement('option');
-  newOpt.value = '__new__';
-  newOpt.textContent = '➕ Nuevo equipo…';
-  select.appendChild(newOpt);
-
   var values = Array.prototype.map.call(select.options, function(o){ return o.value; });
   if (values.indexOf(prevValue) !== -1) select.value = prevValue;
-
-  toggleNewTeamField();
-}
-
-function toggleNewTeamField() {
-  var select = document.getElementById('enemy-team-select');
-  var field = document.getElementById('enemy-newteam-field');
-  if (!select || !field) return;
-  field.classList.toggle('is-hidden', select.value !== '__new__');
 }
 
 function makeEnemyTeamSelect(currentTeam, onChange) {
@@ -766,26 +771,48 @@ function renderEnemiesPanel() {
   panel.appendChild(head);
 
   var list = enemiesForServer();
-  if (!list.length) {
+  var teamNames = enemyTeams();
+
+  if (!list.length && !teamNames.length) {
     var empty = document.createElement('div');
     empty.className = 'enemy-empty';
-    empty.textContent = 'Todavía no hay enemigos apuntados en este servidor. ¡Añade el primero arriba!';
+    empty.textContent = 'Todavía no hay enemigos ni equipos apuntados en este servidor. ¡Añade el primero arriba!';
     panel.appendChild(empty);
     return;
   }
 
-  var teams = enemyTeams().concat(['']);
+  var teams = teamNames.concat(['']);
   teams.forEach(function(team){
     var teamEnemies = list.filter(function(e){ return (e.team || '') === team; })
                            .sort(function(a,b){ return a.name.localeCompare(b.name); });
-    if (!teamEnemies.length) return;
+    var teamInfo = team === '' ? null : findEnemyTeam(team);
+    // "Sin equipo" (y los equipos heredados solo-texto) se muestran
+    // únicamente si tienen enemigos; los equipos registrados se
+    // muestran siempre, aunque estén vacíos.
+    if (!teamEnemies.length && !teamInfo) return;
 
     var group = document.createElement('div');
     group.className = 'enemy-team-group';
 
     var groupHead = document.createElement('div');
     groupHead.className = 'enemy-team-head';
-    groupHead.textContent = team === '' ? '🎯 Sin equipo' : '⚔️ ' + team;
+
+    var groupTitle = document.createElement('span');
+    groupTitle.textContent = team === '' ? '🎯 Sin equipo' : '⚔️ ' + team;
+    groupHead.appendChild(groupTitle);
+
+    // Tamaño y cuadrante del equipo (si está registrado con ficha)
+    if (teamInfo) {
+      var metaBits = [];
+      if (teamInfo.size) metaBits.push('👥 ' + teamInfo.size + ' jugador' + (teamInfo.size === 1 ? '' : 'es'));
+      if (teamInfo.quadrant) metaBits.push('📍 Viven en ' + teamInfo.quadrant);
+      if (metaBits.length) {
+        var meta = document.createElement('span');
+        meta.className = 'enemy-team-meta';
+        meta.textContent = metaBits.join(' · ');
+        groupHead.appendChild(meta);
+      }
+    }
 
     // Si BattleMetrics está vinculado, mostramos cuántos del equipo
     // están conectados ahora mismo.
@@ -801,7 +828,36 @@ function renderEnemiesPanel() {
       }
     }
 
+    if (teamInfo) {
+      var teamDelBtn = document.createElement('button');
+      teamDelBtn.className = 'enemy-team-delete';
+      teamDelBtn.type = 'button';
+      teamDelBtn.title = 'Eliminar equipo (sus enemigos pasan a "Sin equipo")';
+      teamDelBtn.setAttribute('aria-label', 'Eliminar equipo');
+      teamDelBtn.textContent = '✕';
+      teamDelBtn.addEventListener('click', async function(){
+        if (!confirm('¿Eliminar el equipo "' + teamInfo.name + '"? Sus enemigos pasarán a "Sin equipo".')) return;
+        try {
+          await api('/enemy-teams/' + teamInfo.id, { method: 'DELETE' });
+        } catch (err) { showToast(err.message); return; }
+        await Promise.all([fetchEnemyTeams(), fetchEnemies()]);
+        renderEnemyTeamSelect();
+        renderEnemiesPanel();
+        showToast('Equipo "' + teamInfo.name + '" eliminado', 'success');
+      });
+      groupHead.appendChild(teamDelBtn);
+    }
+
     group.appendChild(groupHead);
+
+    if (!teamEnemies.length) {
+      var emptyTeam = document.createElement('div');
+      emptyTeam.className = 'enemy-team-empty';
+      emptyTeam.textContent = 'Sin enemigos fichados todavía en este equipo. Añádelos con el formulario de arriba.';
+      group.appendChild(emptyTeam);
+      panel.appendChild(group);
+      return;
+    }
 
     var grid = document.createElement('div');
     grid.className = 'enemy-cards-grid';
@@ -883,14 +939,12 @@ function setupEnemies() {
   renderEnemiesBmBox();
   renderEnemiesPanel();
 
-  document.getElementById('enemy-team-select').addEventListener('change', toggleNewTeamField);
-
+  // ---- Formulario: añadir enemigo ----
   document.getElementById('enemy-add-form-el').addEventListener('submit', async function(e){
     e.preventDefault();
     var nameInput = document.getElementById('enemy-name-input');
     var steamInput = document.getElementById('enemy-steamid-input');
     var teamSelect = document.getElementById('enemy-team-select');
-    var newTeamInput = document.getElementById('enemy-newteam-input');
 
     var name = nameInput.value.trim();
     if (!name) return;
@@ -900,21 +954,52 @@ function setupEnemies() {
       return;
     }
 
-    var team = teamSelect.value === '__new__' ? newTeamInput.value.trim() : teamSelect.value;
-
     try {
       await api('/enemies', { method: 'POST', body: {
-        serverId: enemiesSelectedServerId, name: name, steamId: steamId, team: team
+        serverId: enemiesSelectedServerId, name: name, steamId: steamId, team: teamSelect.value
       } });
     } catch (err) { showToast(err.message); return; }
 
     nameInput.value = '';
     steamInput.value = '';
-    newTeamInput.value = '';
     await fetchEnemies();
     renderEnemyTeamSelect();
     renderEnemiesPanel();
     showToast('Enemigo "' + name + '" fichado', 'success');
+    // Refrescamos el estado online para que el recién fichado ya
+    // salga con su 🟢/⚫ sin esperar al siguiente ciclo.
+    refreshEnemiesStatus();
+  });
+
+  // ---- Formulario: crear equipo ----
+  document.getElementById('enemy-team-form-el').addEventListener('submit', async function(e){
+    e.preventDefault();
+    var nameInput = document.getElementById('team-name-input');
+    var sizeInput = document.getElementById('team-size-input');
+    var quadInput = document.getElementById('team-quadrant-input');
+
+    var name = nameInput.value.trim();
+    if (!name) return;
+    var size = parseInt(sizeInput.value, 10);
+    if (sizeInput.value && (!size || size < 1)) {
+      showToast('El número de jugadores debe ser un número mayor que 0 (o déjalo vacío).');
+      return;
+    }
+    var quadrant = quadInput.value.trim().toUpperCase();
+
+    try {
+      await api('/enemy-teams', { method: 'POST', body: {
+        serverId: enemiesSelectedServerId, name: name, size: size || null, quadrant: quadrant
+      } });
+    } catch (err) { showToast(err.message); return; }
+
+    nameInput.value = '';
+    sizeInput.value = '';
+    quadInput.value = '';
+    await fetchEnemyTeams();
+    renderEnemyTeamSelect();
+    renderEnemiesPanel();
+    showToast('Equipo "' + name + '" creado', 'success');
   });
 }
 
@@ -1163,9 +1248,23 @@ var ROLE_WHEELS = [
   { id: 'electricista', label: 'Electricista', icon: '⚡', accent: '#ffd400' },
   { id: 'huertista',    label: 'Huertista',    icon: '🌱', accent: '#4c9a4c' }
 ];
-var WHEEL_COLORS = ['#e6007e', '#ffd400', '#b6132f', '#c98a2b', '#9e0057', '#ffb347', '#6b1650', '#8a5a3a'];
+// Solo dos colores, alternados: el rosa y el amarillo de la casa.
+// Si el número de jugadores es impar, el último gajo usa un rosa
+// oscuro para que no queden dos gajos iguales pegados en la unión.
+var WHEEL_COLORS = ['#e6007e', '#ffd400'];
+var WHEEL_ODD_COLOR = '#9e0057';
 var wheelState = {};
+// Quién entra en el sorteo (no todos juegan todos los wipes).
+// null = aún sin inicializar; se rellena con todos al construir.
+var wheelParticipants = null;
 var SVG_NS = 'http://www.w3.org/2000/svg';
+
+function wheelMembers() {
+  if (!wheelParticipants) return [];
+  return USERS
+    .filter(function(u){ return wheelParticipants[u.username]; })
+    .sort(function(a, b){ return a.alias.localeCompare(b.alias); });
+}
 
 function polarToCartesian(cx, cy, r, angleDeg) {
   var rad = (angleDeg - 90) * Math.PI / 180;
@@ -1184,7 +1283,7 @@ function drawWheelSlices(roleId) {
   if (!svg) return;
   svg.innerHTML = '';
 
-  var members = USERS.slice().sort(function(a, b){ return a.alias.localeCompare(b.alias); });
+  var members = wheelMembers();
   wheelState[roleId].members = members;
   var n = members.length;
   if (!n) return;
@@ -1199,28 +1298,41 @@ function drawWheelSlices(roleId) {
     var startAngle = i * sliceAngle;
     var endAngle = (i + 1) * sliceAngle;
 
+    // Alternamos rosa/amarillo; si el total es impar, el último gajo
+    // va en rosa oscuro para que no se junten dos rosas en la costura.
+    var fill = WHEEL_COLORS[i % 2];
+    if (n % 2 === 1 && n > 1 && i === n - 1) fill = WHEEL_ODD_COLOR;
+
     var path = document.createElementNS(SVG_NS, 'path');
     path.setAttribute('d', describeWheelSlice(cx, cy, r, startAngle, endAngle));
-    path.setAttribute('fill', WHEEL_COLORS[i % WHEEL_COLORS.length]);
+    path.setAttribute('fill', fill);
     path.setAttribute('stroke', '#0e0e0f');
-    path.setAttribute('stroke-width', '2');
+    path.setAttribute('stroke-width', '2.5');
     group.appendChild(path);
 
+    // Texto RADIAL (del centro hacia el borde, como las ruletas de
+    // verdad): así los nombres no se amontonan y caben más largos.
     var midAngle = startAngle + sliceAngle / 2;
-    var labelPos = polarToCartesian(cx, cy, r * 0.62, midAngle);
+    var labelPos = polarToCartesian(cx, cy, r * 0.93, midAngle);
     var text = document.createElementNS(SVG_NS, 'text');
     text.setAttribute('x', labelPos.x);
     text.setAttribute('y', labelPos.y);
-    text.setAttribute('fill', '#ffffff');
-    text.setAttribute('stroke', 'rgba(0,0,0,0.55)');
-    text.setAttribute('stroke-width', '2.5');
-    text.setAttribute('paint-order', 'stroke');
-    text.setAttribute('font-size', n > 9 ? '9.5' : '11.5');
-    text.setAttribute('font-weight', '600');
-    text.setAttribute('text-anchor', 'middle');
+    // Sobre amarillo, texto oscuro; sobre rosa, texto blanco.
+    var onYellow = fill === '#ffd400';
+    text.setAttribute('fill', onYellow ? '#1c1607' : '#ffffff');
+    if (!onYellow) {
+      text.setAttribute('stroke', 'rgba(0,0,0,0.45)');
+      text.setAttribute('stroke-width', '2');
+      text.setAttribute('paint-order', 'stroke');
+    }
+    text.setAttribute('font-size', n > 10 ? '11' : (n > 6 ? '12.5' : '14'));
+    text.setAttribute('font-weight', '700');
+    text.setAttribute('text-anchor', 'end');
     text.setAttribute('dominant-baseline', 'middle');
-    text.setAttribute('transform', 'rotate(' + midAngle + ' ' + labelPos.x + ' ' + labelPos.y + ')');
-    text.textContent = u.alias.length > 13 ? u.alias.slice(0, 12) + '…' : u.alias;
+    text.setAttribute('letter-spacing', '0.4');
+    // Rotamos el texto para que corra a lo largo del radio del gajo.
+    text.setAttribute('transform', 'rotate(' + (midAngle - 90) + ' ' + labelPos.x + ' ' + labelPos.y + ')');
+    text.textContent = u.alias.length > 16 ? u.alias.slice(0, 15) + '…' : u.alias;
     group.appendChild(text);
   });
 
@@ -1275,7 +1387,10 @@ function spinWheel(roleId) {
   if (!state || state.spinning) return;
   var members = state.members;
   var n = members.length;
-  if (!n) return;
+  if (n < 2) {
+    showToast('Marca al menos a 2 jugadores en "¿Quién juega este wipe?" para poder sortear.');
+    return;
+  }
 
   state.spinning = true;
   var spinBtn = document.getElementById('spin-btn-' + roleId);
@@ -1312,6 +1427,62 @@ function spinWheel(roleId) {
     resultEl.classList.add('has-winner');
     burstConfetti(document.getElementById('confetti-' + roleId), state.accent);
   }, 4300);
+}
+
+// Selector de "¿quién juega este wipe?": chips con cada miembro.
+// Al tocar un chip entra/sale de todas las ruletas a la vez.
+function renderWheelRoster() {
+  var box = document.getElementById('roles-roster');
+  if (!box) return;
+
+  // Primera vez (o si han aparecido miembros nuevos): todos dentro.
+  if (!wheelParticipants) wheelParticipants = {};
+  USERS.forEach(function(u){
+    if (!(u.username in wheelParticipants)) wheelParticipants[u.username] = true;
+  });
+
+  box.innerHTML = '';
+
+  var label = document.createElement('div');
+  label.className = 'roles-roster-label';
+  label.textContent = '👥 ¿Quién juega este wipe?';
+  box.appendChild(label);
+
+  var chips = document.createElement('div');
+  chips.className = 'roles-roster-chips';
+
+  USERS.slice().sort(function(a,b){ return a.alias.localeCompare(b.alias); }).forEach(function(u){
+    var chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'roster-chip' + (wheelParticipants[u.username] ? ' active' : '');
+    chip.textContent = u.alias;
+    chip.setAttribute('aria-pressed', wheelParticipants[u.username] ? 'true' : 'false');
+    chip.addEventListener('click', function(){
+      wheelParticipants[u.username] = !wheelParticipants[u.username];
+      chip.classList.toggle('active', wheelParticipants[u.username]);
+      chip.setAttribute('aria-pressed', wheelParticipants[u.username] ? 'true' : 'false');
+      redrawIdleWheels();
+      renderWheelRosterCount();
+    });
+    chips.appendChild(chip);
+  });
+
+  box.appendChild(chips);
+
+  var count = document.createElement('div');
+  count.className = 'roles-roster-count';
+  count.id = 'roles-roster-count';
+  box.appendChild(count);
+  renderWheelRosterCount();
+}
+
+function renderWheelRosterCount() {
+  var el = document.getElementById('roles-roster-count');
+  if (!el) return;
+  var n = wheelMembers().length;
+  if (n === 0) el.textContent = 'Nadie en la ruleta — marca a los que jueguen.';
+  else if (n === 1) el.textContent = 'Solo 1 en la ruleta — hacen falta al menos 2 para sortear.';
+  else el.textContent = n + ' jugadores en la ruleta.';
 }
 
 function buildWheelsUI() {
@@ -1376,13 +1547,19 @@ function buildWheelsUI() {
   });
 }
 
-function refreshWheelsIfIdle() {
+function redrawIdleWheels() {
   ROLE_WHEELS.forEach(function(role){
     if (wheelState[role.id] && !wheelState[role.id].spinning) drawWheelSlices(role.id);
   });
 }
 
+function refreshWheelsIfIdle() {
+  renderWheelRoster();
+  redrawIdleWheels();
+}
+
 function setupRoles() {
+  renderWheelRoster();
   buildWheelsUI();
 }
 
@@ -1502,7 +1679,7 @@ function setupNav() {
       if (view === 'wipes') { wipeWeekOffset = 0; await fetchWipeSignups(); renderWipes(); }
       if (view === 'stats') renderStatsPanel();
       if (view === 'enemigos') {
-        await Promise.all([fetchEnemies(), fetchServerSettings()]);
+        await Promise.all([fetchEnemies(), fetchEnemyTeams(), fetchServerSettings()]);
         renderEnemyTeamSelect();
         renderEnemiesBmBox();
         renderEnemiesPanel();

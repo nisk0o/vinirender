@@ -286,6 +286,9 @@ button.fault-chip:hover { border-color: #ff4d4d; background: rgba(255,77,77,0.15
 .stats-panel-note { padding: 0.9rem 1.3rem; font-family: var(--font-mono); font-size: 0.72rem; color: var(--color-text-faint); letter-spacing: 0.02em; border-top: 1px solid rgba(255,255,255,0.07); }
 
 /* ---- Enemigos ---- */
+.enemy-forms { display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.75rem; }
+.enemy-forms .enemy-add-form { flex: 1 1 360px; min-width: 300px; margin-bottom: 0; }
+.enemy-field-small { flex: 0 1 130px !important; min-width: 110px !important; }
 .enemy-add-form { border: 1px solid rgba(255,255,255,0.08); border-radius: var(--radius-md); background: var(--color-bg-raised); padding: 1.1rem 1.3rem; margin-bottom: 1.75rem; }
 .enemy-add-title { font-family: var(--font-display); font-size: 1rem; letter-spacing: 0.03em; color: var(--color-text); margin-bottom: 0.9rem; }
 .enemy-add-row { display: flex; flex-wrap: wrap; gap: 0.85rem; align-items: flex-end; }
@@ -319,11 +322,15 @@ button.fault-chip:hover { border-color: #ff4d4d; background: rgba(255,77,77,0.15
 .enemy-card-status.offline { color: var(--color-text-faint); }
 .enemy-card.is-online { border-color: rgba(67,209,122,0.45); }
 .enemy-card.is-online:hover { border-color: rgba(67,209,122,0.75); }
-.enemy-team-online { font-family: var(--font-mono); font-size: 0.68rem; color: #43d17a; margin-left: 0.6rem; font-weight: normal; }
+.enemy-team-online { font-family: var(--font-mono); font-size: 0.68rem; color: #43d17a; font-weight: normal; }
 
 .enemy-empty { text-align: center; padding: 3rem 1rem; color: var(--color-text-faint); font-family: var(--font-mono); font-size: 0.85rem; }
 .enemy-team-group { margin-bottom: 1.5rem; }
-.enemy-team-head { font-family: var(--font-display); font-size: 0.95rem; letter-spacing: 0.03em; color: var(--color-fucsia-glow); margin-bottom: 0.7rem; padding-bottom: 0.4rem; border-bottom: 1px solid rgba(255,255,255,0.08); }
+.enemy-team-head { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; font-family: var(--font-display); font-size: 0.95rem; letter-spacing: 0.03em; color: var(--color-fucsia-glow); margin-bottom: 0.7rem; padding-bottom: 0.4rem; border-bottom: 1px solid rgba(255,255,255,0.08); }
+.enemy-team-meta { font-family: var(--font-mono); font-size: 0.68rem; color: var(--color-text-faint); letter-spacing: 0.02em; font-weight: normal; }
+.enemy-team-delete { margin-left: auto; flex: 0 0 auto; width: 24px; height: 24px; border-radius: 50%; background: transparent; border: 1.5px solid var(--color-metal-light); color: var(--color-text-dim); font-size: 0.7rem; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s ease; }
+.enemy-team-delete:hover { border-color: var(--color-danger); color: var(--color-danger); }
+.enemy-team-empty { font-family: var(--font-mono); font-size: 0.75rem; color: var(--color-text-faint); padding: 0.5rem 0 0.25rem; }
 .enemy-cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0.85rem; }
 .enemy-card { border: 1px solid rgba(255,255,255,0.08); border-radius: var(--radius-md); background: var(--color-bg-raised); padding: 0.9rem 1rem; display: flex; flex-direction: column; gap: 0.5rem; box-shadow: 0 6px 16px rgba(0,0,0,0.22); transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.15s ease; }
 .enemy-card:hover { transform: translateY(-3px); border-color: rgba(230,0,126,0.45); box-shadow: 0 12px 26px rgba(0,0,0,0.34); }
@@ -375,12 +382,19 @@ button.fault-chip:hover { border-color: #ff4d4d; background: rgba(255,77,77,0.15
 .raid-resource-label { font-family: var(--font-mono); font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--color-text-faint); margin-top: 0.1rem; }
 
 /* ---- Ruleta de Roles ---- */
+.roles-roster { border: 1px solid rgba(255,255,255,0.08); border-radius: var(--radius-md); background: var(--color-bg-raised); padding: 1rem 1.3rem; margin-bottom: 1.75rem; }
+.roles-roster-label { font-family: var(--font-display); font-size: 0.95rem; letter-spacing: 0.03em; color: var(--color-text); margin-bottom: 0.75rem; }
+.roles-roster-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.roster-chip { background: var(--color-bg); border: 1.5px solid rgba(255,255,255,0.12); border-radius: 999px; color: var(--color-text-faint); font-family: var(--font-body); font-size: 0.82rem; padding: 0.45rem 0.95rem; cursor: pointer; transition: all 0.15s ease; }
+.roster-chip:hover { border-color: rgba(255,212,0,0.5); color: var(--color-text-dim); }
+.roster-chip.active { background: linear-gradient(135deg, rgba(230,0,126,0.18), rgba(255,212,0,0.14)); border-color: var(--color-fucsia); color: var(--color-text); box-shadow: 0 0 10px rgba(230,0,126,0.25); }
+.roles-roster-count { font-family: var(--font-mono); font-size: 0.68rem; color: var(--color-text-faint); letter-spacing: 0.03em; margin-top: 0.7rem; }
 .roles-wheels { display: flex; flex-wrap: wrap; gap: 1.75rem; justify-content: center; }
-.wheel-card { background: var(--color-bg-raised); border: 1px solid rgba(255,255,255,0.08); border-radius: var(--radius-md); padding: 1.5rem 1.25rem 1.75rem; display: flex; flex-direction: column; align-items: center; width: 100%; max-width: 300px; position: relative; overflow: hidden; box-shadow: 0 10px 26px rgba(0,0,0,0.32); transition: transform 0.2s ease, box-shadow 0.2s ease; }
+.wheel-card { background: var(--color-bg-raised); border: 1px solid rgba(255,255,255,0.08); border-radius: var(--radius-md); padding: 1.5rem 1.25rem 1.75rem; display: flex; flex-direction: column; align-items: center; width: 100%; max-width: 320px; position: relative; overflow: hidden; box-shadow: 0 10px 26px rgba(0,0,0,0.32); transition: transform 0.2s ease, box-shadow 0.2s ease; }
 .wheel-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; background: var(--wheel-accent, var(--color-fucsia)); box-shadow: 0 0 12px 0 var(--wheel-accent, var(--color-fucsia)); }
 .wheel-card:hover { transform: translateY(-3px); box-shadow: 0 16px 34px rgba(0,0,0,0.42); }
 .wheel-title { font-size: 1.15rem; margin-bottom: 1.15rem; color: var(--color-text); text-align: center; display: flex; align-items: center; gap: 0.45rem; }
-.wheel-wrap { position: relative; width: 230px; height: 230px; margin-bottom: 1.25rem; }
+.wheel-wrap { position: relative; width: 260px; height: 260px; margin-bottom: 1.25rem; }
 .wheel-glow { position: absolute; inset: -16px; border-radius: 50%; background: radial-gradient(circle, var(--wheel-accent, var(--color-fucsia)) 0%, transparent 68%); opacity: 0; filter: blur(11px); transition: opacity 0.35s ease; pointer-events: none; }
 .wheel-wrap.is-spinning .wheel-glow { animation: wheel-glow-pulse 1.05s ease-in-out infinite; }
 @keyframes wheel-glow-pulse { 0%, 100% { opacity: 0.3; } 50% { opacity: 0.62; } }
@@ -750,29 +764,48 @@ button.fault-chip:hover { border-color: #ff4d4d; background: rgba(255,77,77,0.15
 
       <div class="enemy-bm-box" id="enemy-bm-box"></div>
 
-      <div class="enemy-add-form">
-        <div class="enemy-add-title">➕ Añadir enemigo</div>
-        <form id="enemy-add-form-el">
-          <div class="enemy-add-row">
-            <div class="field">
-              <label for="enemy-name-input">Nombre / alias</label>
-              <input type="text" id="enemy-name-input" placeholder="ej. xXRaiderXx" required />
+      <div class="enemy-forms">
+        <div class="enemy-add-form">
+          <div class="enemy-add-title">➕ Añadir enemigo</div>
+          <form id="enemy-add-form-el">
+            <div class="enemy-add-row">
+              <div class="field">
+                <label for="enemy-name-input">Nombre / alias</label>
+                <input type="text" id="enemy-name-input" placeholder="ej. xXRaiderXx" required />
+              </div>
+              <div class="field">
+                <label for="enemy-steamid-input">SteamID64 (opcional)</label>
+                <input type="text" id="enemy-steamid-input" placeholder="76561198012345678" />
+              </div>
+              <div class="field">
+                <label for="enemy-team-select">Equipo</label>
+                <select id="enemy-team-select"></select>
+              </div>
+              <button type="submit" class="btn enemy-add-submit">Añadir</button>
             </div>
-            <div class="field">
-              <label for="enemy-steamid-input">SteamID64 (opcional)</label>
-              <input type="text" id="enemy-steamid-input" placeholder="76561198012345678" />
+          </form>
+        </div>
+
+        <div class="enemy-add-form">
+          <div class="enemy-add-title">⚔️ Crear equipo</div>
+          <form id="enemy-team-form-el">
+            <div class="enemy-add-row">
+              <div class="field">
+                <label for="team-name-input">Nombre del equipo</label>
+                <input type="text" id="team-name-input" placeholder="ej. Zerg del norte" required />
+              </div>
+              <div class="field enemy-field-small">
+                <label for="team-size-input">¿Cuántos son?</label>
+                <input type="number" id="team-size-input" min="1" max="99" placeholder="ej. 4" />
+              </div>
+              <div class="field enemy-field-small">
+                <label for="team-quadrant-input">¿Dónde viven?</label>
+                <input type="text" id="team-quadrant-input" placeholder="ej. K13" maxlength="6" />
+              </div>
+              <button type="submit" class="btn enemy-add-submit">Crear</button>
             </div>
-            <div class="field">
-              <label for="enemy-team-select">Equipo</label>
-              <select id="enemy-team-select"></select>
-            </div>
-            <div class="field enemy-add-newteam is-hidden" id="enemy-newteam-field">
-              <label for="enemy-newteam-input">Nombre del equipo nuevo</label>
-              <input type="text" id="enemy-newteam-input" placeholder="ej. Zerg del norte" />
-            </div>
-            <button type="submit" class="btn enemy-add-submit">Añadir</button>
-          </div>
-        </form>
+          </form>
+        </div>
       </div>
 
       <div class="enemy-list" id="enemy-list"></div>
@@ -825,8 +858,9 @@ button.fault-chip:hover { border-color: #ff4d4d; background: rgba(255,77,77,0.15
       <div class="taquilla-head">
         <p class="welcome-eyebrow">🎡 Sorteo del wipe</p>
         <h1 class="welcome-title">Ruleta de <span>Roles</span></h1>
-        <p class="welcome-text">Constructor, electricista y huertista del próximo wipe, decididos por el destino. Pulsa girar en cada ruleta.</p>
+        <p class="welcome-text">Constructor, electricista y huertista del próximo wipe, decididos por el destino. Marca quién juega este wipe y pulsa girar en cada ruleta.</p>
       </div>
+      <div class="roles-roster" id="roles-roster"></div>
       <div class="roles-wheels" id="roles-wheels"></div>
     </div>
 
