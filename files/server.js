@@ -43,6 +43,10 @@ const PROMOTION_MAP = {
   'Minion fundador': 'Amo de segundo nivel'
 };
 
+// ---- Bases ----
+const BASE_TEAM_SIZES = ['', 'trio', 'zerg'];
+const BASE_OUTCOMES = ['sobrevivio', 'raid_offline', 'raid_online', 'decay', 'abandonada'];
+
 // ------------------------------------------------------------
 // Utilidades de contraseña (scrypt + salt, comparación insensible
 // a mayúsculas/minúsculas para mantener el comportamiento original)
@@ -169,6 +173,34 @@ function rowToEnemyTeam(row) {
     quadrant: row.quadrant || '', ts: Number(row.ts)
   };
 }
+function rowToBase(row) {
+  return {
+    id: row.id, name: row.name, youtubeUrl: row.youtube_url || '',
+    teamSize: row.team_size || '', bunker: !!row.bunker,
+    costStone: row.cost_stone == null ? null : Number(row.cost_stone),
+    costMetal: row.cost_metal == null ? null : Number(row.cost_metal),
+    notes: row.notes || '', createdBy: row.created_by || '', ts: Number(row.ts)
+  };
+}
+function rowToBaseVote(row) { return { id: row.id, baseId: Number(row.base_id), username: row.username, bananas: Number(row.bananas), ts: Number(row.ts) }; }
+function rowToBaseUsage(row) {
+  return {
+    id: row.id, baseId: Number(row.base_id), wipeLabel: row.wipe_label,
+    serverId: row.server_id || '',
+    daysSurvived: row.days_survived == null ? null : Number(row.days_survived),
+    outcome: row.outcome, notes: row.notes || '',
+    createdBy: row.created_by || '', ts: Number(row.ts)
+  };
+}
+function rowToBaseDraft(row) {
+  return {
+    id: row.id, wipeLabel: row.wipe_label, status: row.status,
+    winnerBaseId: row.winner_base_id == null ? null : Number(row.winner_base_id),
+    createdBy: row.created_by || '', ts: Number(row.ts)
+  };
+}
+function rowToDraftCandidate(row) { return { id: row.id, draftId: Number(row.draft_id), baseId: Number(row.base_id) }; }
+function rowToDraftVote(row) { return { id: row.id, draftId: Number(row.draft_id), baseId: Number(row.base_id), username: row.username, ts: Number(row.ts) }; }
 
 // ------------------------------------------------------------
 // BattleMetrics: consultamos su API pública SIEMPRE desde el
@@ -515,6 +547,15 @@ async function handleApi(req, res, pathname) {
 
       await db.update('wipe_points', `username=eq.${encodeURIComponent(oldUsername)}`, { username: newUsername });
       await db.update('wipe_points', `reported_by=eq.${encodeURIComponent(oldUsername)}`, { reported_by: newUsername });
+
+      // Bases: migramos votos, hoja de servicio y autorías antes de
+      // borrar la fila antigua (los FK con ON DELETE CASCADE se
+      // llevarían por delante los votos si no lo hiciéramos).
+      await db.update('bases', `created_by=eq.${encodeURIComponent(oldUsername)}`, { created_by: newUsername });
+      await db.update('base_votes', `username=eq.${encodeURIComponent(oldUsername)}`, { username: newUsername });
+      await db.update('base_usages', `created_by=eq.${encodeURIComponent(oldUsername)}`, { created_by: newUsername });
+      await db.update('base_drafts', `created_by=eq.${encodeURIComponent(oldUsername)}`, { created_by: newUsername });
+      await db.update('base_draft_votes', `username=eq.${encodeURIComponent(oldUsername)}`, { username: newUsername });
 
       await db.remove('users', `username=eq.${encodeURIComponent(oldUsername)}`);
 
@@ -982,6 +1023,289 @@ async function handleApi(req, res, pathname) {
     if (!requireAuth()) return;
     const id = Number(m[1]);
     await db.remove('enemies', `id=eq.${id}`);
+    return sendJSON(res, 200, { ok: true });
+  }
+
+  // ============================================================
+  // BASES — repositorio, votos en bananas, hoja de servicio y draft
+  // ============================================================
+
+  // Todo el estado de la pestaña en una sola petición: bases,
+  // votos y hoja de servicio. El frontend agrupa y calcula medias.
+  if (pathname === '/api/bases' && method === 'GET') {
+    if (!requireAuth()) return;
+    const [baseRows, voteRows, usageRows] = await Promise.all([
+      db.select('bases', 'select=*&order=ts.desc'),
+      db.select('base_votes', 'select=*'),
+      db.select('base_usages', 'select=*&order=ts.desc')
+    ]);
+    return sendJSON(res, 200, {
+      bases: (baseRows || []).map(rowToBase),
+      votes: (voteRows || []).map(rowToBaseVote),
+      usages: (usageRows || []).map(rowToBaseUsage)
+    });
+  }
+
+  // Crear una base nueva en el repositorio.
+  if (pathname === '/api/bases' && method === 'POST') {
+    if (!requireAuth()) return;
+    let body;
+    try { body = await readBody(req); } catch (e) { return sendJSON(res, 400, { error: 'Petición inválida.' }); }
+    const name = String(body.name || '').trim().slice(0, 80);
+    const youtubeUrl = String(body.youtubeUrl || '').trim().slice(0, 300);
+    const teamSize = String(body.teamSize || '').trim();
+    const bunker = body.bunker === true || body.bunker === 'true';
+    const notes = String(body.notes || '').trim().slice(0, 500);
+    let costStone = parseInt(body.costStone, 10);
+    let costMetal = parseInt(body.costMetal, 10);
+    if (isNaN(costStone) || costStone < 0) costStone = null;
+    if (isNaN(costMetal) || costMetal < 0) costMetal = null;
+
+    if (!name) return sendJSON(res, 400, { error: 'La base necesita un nombre.' });
+    if (!BASE_TEAM_SIZES.includes(teamSize)) return sendJSON(res, 400, { error: 'Tamaño de equipo no válido (trío o zerg).' });
+    if (youtubeUrl && !/^https?:\/\//i.test(youtubeUrl)) {
+      return sendJSON(res, 400, { error: 'El link del vídeo no parece una URL. Pega la dirección completa de YouTube.' });
+    }
+
+    const rows = await db.insert('bases', {
+      name, youtube_url: youtubeUrl, team_size: teamSize, bunker,
+      cost_stone: costStone, cost_metal: costMetal, notes,
+      created_by: user.username, ts: Date.now()
+    });
+    return sendJSON(res, 201, { base: rowToBase(rows[0]) });
+  }
+
+  // Editar una base (quien la subió, o Gru).
+  if ((m = pathname.match(/^\/api\/bases\/(\d+)$/)) && method === 'PATCH') {
+    if (!requireAuth()) return;
+    let body;
+    try { body = await readBody(req); } catch (e) { return sendJSON(res, 400, { error: 'Petición inválida.' }); }
+    const id = Number(m[1]);
+    const found = await db.select('bases', `select=*&id=eq.${id}`);
+    if (!found || !found[0]) return sendJSON(res, 404, { error: 'Base no encontrada.' });
+    if (found[0].created_by !== user.username && user.role !== 'Gru') {
+      return sendJSON(res, 403, { error: 'Solo quien subió la base (o Gru) puede editarla.' });
+    }
+    const patch = {};
+    if (typeof body.name === 'string') {
+      const name = body.name.trim().slice(0, 80);
+      if (!name) return sendJSON(res, 400, { error: 'La base necesita un nombre.' });
+      patch.name = name;
+    }
+    if (typeof body.youtubeUrl === 'string') {
+      const youtubeUrl = body.youtubeUrl.trim().slice(0, 300);
+      if (youtubeUrl && !/^https?:\/\//i.test(youtubeUrl)) {
+        return sendJSON(res, 400, { error: 'El link del vídeo no parece una URL.' });
+      }
+      patch.youtube_url = youtubeUrl;
+    }
+    if (typeof body.teamSize === 'string') {
+      if (!BASE_TEAM_SIZES.includes(body.teamSize)) return sendJSON(res, 400, { error: 'Tamaño de equipo no válido.' });
+      patch.team_size = body.teamSize;
+    }
+    if (body.bunker !== undefined) patch.bunker = body.bunker === true || body.bunker === 'true';
+    if (body.costStone !== undefined) {
+      const v = parseInt(body.costStone, 10);
+      patch.cost_stone = (isNaN(v) || v < 0) ? null : v;
+    }
+    if (body.costMetal !== undefined) {
+      const v = parseInt(body.costMetal, 10);
+      patch.cost_metal = (isNaN(v) || v < 0) ? null : v;
+    }
+    if (typeof body.notes === 'string') patch.notes = body.notes.trim().slice(0, 500);
+    const rows = await db.update('bases', `id=eq.${id}`, patch);
+    return sendJSON(res, 200, { base: rowToBase(rows[0]) });
+  }
+
+  // Borrar una base (quien la subió, o Gru). Sus votos y su hoja
+  // de servicio se van con ella (ON DELETE CASCADE).
+  if ((m = pathname.match(/^\/api\/bases\/(\d+)$/)) && method === 'DELETE') {
+    if (!requireAuth()) return;
+    const id = Number(m[1]);
+    const found = await db.select('bases', `select=*&id=eq.${id}`);
+    if (!found || !found[0]) return sendJSON(res, 404, { error: 'Base no encontrada.' });
+    if (found[0].created_by !== user.username && user.role !== 'Gru') {
+      return sendJSON(res, 403, { error: 'Solo quien subió la base (o Gru) puede borrarla.' });
+    }
+    await db.remove('bases', `id=eq.${id}`);
+    return sendJSON(res, 200, { ok: true });
+  }
+
+  // Votar una base en bananas 🍌 (1-5). Volver a votar actualiza el
+  // voto; enviar bananas = 0 lo retira.
+  if ((m = pathname.match(/^\/api\/bases\/(\d+)\/vote$/)) && method === 'POST') {
+    if (!requireAuth()) return;
+    let body;
+    try { body = await readBody(req); } catch (e) { return sendJSON(res, 400, { error: 'Petición inválida.' }); }
+    const id = Number(m[1]);
+    const bananas = parseInt(body.bananas, 10);
+    const found = await db.select('bases', `select=id&id=eq.${id}`);
+    if (!found || !found[0]) return sendJSON(res, 404, { error: 'Base no encontrada.' });
+    if (bananas === 0) {
+      await db.remove('base_votes', `base_id=eq.${id}&username=eq.${encodeURIComponent(user.username)}`);
+    } else {
+      if (isNaN(bananas) || bananas < 1 || bananas > 5) {
+        return sendJSON(res, 400, { error: 'El voto tiene que ser de 1 a 5 bananas. 🍌' });
+      }
+      // Upsert manual (borrar + insertar) para no depender de que el
+      // índice único exista con nombre concreto en PostgREST.
+      await db.remove('base_votes', `base_id=eq.${id}&username=eq.${encodeURIComponent(user.username)}`);
+      await db.insert('base_votes', { base_id: id, username: user.username, bananas, ts: Date.now() });
+    }
+    const voteRows = await db.select('base_votes', `select=*&base_id=eq.${id}`);
+    return sendJSON(res, 200, { votes: (voteRows || []).map(rowToBaseVote) });
+  }
+
+  // Apuntar un uso en la hoja de servicio de una base.
+  if ((m = pathname.match(/^\/api\/bases\/(\d+)\/usages$/)) && method === 'POST') {
+    if (!requireAuth()) return;
+    let body;
+    try { body = await readBody(req); } catch (e) { return sendJSON(res, 400, { error: 'Petición inválida.' }); }
+    const id = Number(m[1]);
+    const found = await db.select('bases', `select=id&id=eq.${id}`);
+    if (!found || !found[0]) return sendJSON(res, 404, { error: 'Base no encontrada.' });
+    const wipeLabel = String(body.wipeLabel || '').trim().slice(0, 60);
+    const serverId = String(body.serverId || '').trim().slice(0, 60);
+    const outcome = String(body.outcome || '').trim();
+    const notes = String(body.notes || '').trim().slice(0, 280);
+    let daysSurvived = parseInt(body.daysSurvived, 10);
+    if (isNaN(daysSurvived) || daysSurvived < 0) daysSurvived = null;
+    if (!wipeLabel) return sendJSON(res, 400, { error: 'Di en qué wipe se usó (ej. "Thursday 16 jul").' });
+    if (!BASE_OUTCOMES.includes(outcome)) return sendJSON(res, 400, { error: 'Resultado no válido.' });
+    const rows = await db.insert('base_usages', {
+      base_id: id, wipe_label: wipeLabel, server_id: serverId,
+      days_survived: daysSurvived, outcome, notes,
+      created_by: user.username, ts: Date.now()
+    });
+    return sendJSON(res, 201, { usage: rowToBaseUsage(rows[0]) });
+  }
+
+  // Borrar una entrada de la hoja de servicio (quien la apuntó, o Gru).
+  if ((m = pathname.match(/^\/api\/base-usages\/(\d+)$/)) && method === 'DELETE') {
+    if (!requireAuth()) return;
+    const id = Number(m[1]);
+    const found = await db.select('base_usages', `select=*&id=eq.${id}`);
+    if (!found || !found[0]) return sendJSON(res, 404, { error: 'Registro no encontrado.' });
+    if (found[0].created_by !== user.username && user.role !== 'Gru') {
+      return sendJSON(res, 403, { error: 'Solo quien apuntó este uso (o Gru) puede borrarlo.' });
+    }
+    await db.remove('base_usages', `id=eq.${id}`);
+    return sendJSON(res, 200, { ok: true });
+  }
+
+  // ---- DRAFT del wipe: proponer bases y votar cuál se construye ----
+  if (pathname === '/api/base-drafts' && method === 'GET') {
+    if (!requireAuth()) return;
+    const [draftRows, candRows, voteRows] = await Promise.all([
+      db.select('base_drafts', 'select=*&order=ts.desc'),
+      db.select('base_draft_candidates', 'select=*'),
+      db.select('base_draft_votes', 'select=*')
+    ]);
+    return sendJSON(res, 200, {
+      drafts: (draftRows || []).map(rowToBaseDraft),
+      candidates: (candRows || []).map(rowToDraftCandidate),
+      votes: (voteRows || []).map(rowToDraftVote)
+    });
+  }
+
+  // Abrir un draft nuevo (cualquiera puede; solo uno abierto a la vez).
+  if (pathname === '/api/base-drafts' && method === 'POST') {
+    if (!requireAuth()) return;
+    let body;
+    try { body = await readBody(req); } catch (e) { return sendJSON(res, 400, { error: 'Petición inválida.' }); }
+    const wipeLabel = String(body.wipeLabel || '').trim().slice(0, 60);
+    const baseIds = Array.isArray(body.baseIds)
+      ? Array.from(new Set(body.baseIds.map(x => Number(x)).filter(x => Number.isInteger(x) && x > 0)))
+      : [];
+    if (!wipeLabel) return sendJSON(res, 400, { error: 'Di para qué wipe es el draft (ej. "Thursday 16 jul").' });
+    if (baseIds.length < 2) return sendJSON(res, 400, { error: 'Un draft necesita al menos 2 bases candidatas.' });
+
+    const open = await db.select('base_drafts', `select=id&status=eq.abierto&limit=1`);
+    if (open && open.length > 0) {
+      return sendJSON(res, 409, { error: 'Ya hay un draft abierto. Cerradlo antes de abrir otro.' });
+    }
+    const baseRows = await db.select('bases', `select=id&id=in.(${baseIds.join(',')})`);
+    if (!baseRows || baseRows.length !== baseIds.length) {
+      return sendJSON(res, 400, { error: 'Alguna de las bases candidatas ya no existe.' });
+    }
+
+    const draftRows = await db.insert('base_drafts', {
+      wipe_label: wipeLabel, status: 'abierto', winner_base_id: null,
+      created_by: user.username, ts: Date.now()
+    });
+    const draft = rowToBaseDraft(draftRows[0]);
+    await db.insert('base_draft_candidates', baseIds.map(bid => ({ draft_id: draft.id, base_id: bid })));
+    return sendJSON(res, 201, { draft });
+  }
+
+  // Votar en un draft abierto (un voto por persona; re-votar cambia).
+  if ((m = pathname.match(/^\/api\/base-drafts\/(\d+)\/vote$/)) && method === 'POST') {
+    if (!requireAuth()) return;
+    let body;
+    try { body = await readBody(req); } catch (e) { return sendJSON(res, 400, { error: 'Petición inválida.' }); }
+    const id = Number(m[1]);
+    const baseId = Number(body.baseId);
+    const drows = await db.select('base_drafts', `select=*&id=eq.${id}`);
+    if (!drows || !drows[0]) return sendJSON(res, 404, { error: 'Draft no encontrado.' });
+    if (drows[0].status !== 'abierto') return sendJSON(res, 409, { error: 'Ese draft ya está cerrado.' });
+    const cand = await db.select('base_draft_candidates', `select=id&draft_id=eq.${id}&base_id=eq.${baseId}`);
+    if (!cand || !cand.length) return sendJSON(res, 400, { error: 'Esa base no está entre las candidatas del draft.' });
+    await db.remove('base_draft_votes', `draft_id=eq.${id}&username=eq.${encodeURIComponent(user.username)}`);
+    await db.insert('base_draft_votes', { draft_id: id, base_id: baseId, username: user.username, ts: Date.now() });
+    const voteRows = await db.select('base_draft_votes', `select=*&draft_id=eq.${id}`);
+    return sendJSON(res, 200, { votes: (voteRows || []).map(rowToDraftVote) });
+  }
+
+  // Cerrar el draft (quien lo abrió, o Gru): gana la base con más
+  // votos. En caso de empate, la que votó antes su primer apoyo.
+  if ((m = pathname.match(/^\/api\/base-drafts\/(\d+)\/close$/)) && method === 'POST') {
+    if (!requireAuth()) return;
+    const id = Number(m[1]);
+    const drows = await db.select('base_drafts', `select=*&id=eq.${id}`);
+    if (!drows || !drows[0]) return sendJSON(res, 404, { error: 'Draft no encontrado.' });
+    if (drows[0].status !== 'abierto') return sendJSON(res, 409, { error: 'Ese draft ya está cerrado.' });
+    if (drows[0].created_by !== user.username && user.role !== 'Gru') {
+      return sendJSON(res, 403, { error: 'Solo quien abrió el draft (o Gru) puede cerrarlo.' });
+    }
+    const voteRows = await db.select('base_draft_votes', `select=*&draft_id=eq.${id}`);
+    if (!voteRows || !voteRows.length) {
+      return sendJSON(res, 409, { error: 'Nadie ha votado todavía: no se puede elegir ganadora.' });
+    }
+    // Recuento: nº de votos por base; desempate por el voto más antiguo.
+    const tally = {};
+    voteRows.forEach(v => {
+      const bid = Number(v.base_id);
+      if (!tally[bid]) tally[bid] = { count: 0, firstTs: Number(v.ts) };
+      tally[bid].count += 1;
+      tally[bid].firstTs = Math.min(tally[bid].firstTs, Number(v.ts));
+    });
+    const winnerId = Number(Object.keys(tally).sort((a, b) => {
+      if (tally[b].count !== tally[a].count) return tally[b].count - tally[a].count;
+      return tally[a].firstTs - tally[b].firstTs;
+    })[0]);
+    const rows = await db.update('base_drafts', `id=eq.${id}`, { status: 'cerrado', winner_base_id: winnerId });
+
+    // Lo anunciamos en el tablón para que se entere toda la Zerg.
+    const wbase = await db.select('bases', `select=name&id=eq.${winnerId}`);
+    const wname = wbase && wbase[0] ? wbase[0].name : 'una base';
+    await db.insert('board_notes', {
+      username: user.username,
+      text: `👑 Draft cerrado: la base elegida para el wipe "${drows[0].wipe_label}" es «${wname}». ¡A farmear, minions! 🍌`,
+      ts: Date.now()
+    });
+    return sendJSON(res, 200, { draft: rowToBaseDraft(rows[0]) });
+  }
+
+  // Borrar un draft (quien lo abrió, o Gru).
+  if ((m = pathname.match(/^\/api\/base-drafts\/(\d+)$/)) && method === 'DELETE') {
+    if (!requireAuth()) return;
+    const id = Number(m[1]);
+    const drows = await db.select('base_drafts', `select=*&id=eq.${id}`);
+    if (!drows || !drows[0]) return sendJSON(res, 404, { error: 'Draft no encontrado.' });
+    if (drows[0].created_by !== user.username && user.role !== 'Gru') {
+      return sendJSON(res, 403, { error: 'Solo quien abrió el draft (o Gru) puede borrarlo.' });
+    }
+    await db.remove('base_drafts', `id=eq.${id}`);
     return sendJSON(res, 200, { ok: true });
   }
 

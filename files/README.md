@@ -22,8 +22,11 @@ Node 18. Cero `npm install`.
    **New query**.
 4. Abre el archivo [`db/schema.sql`](./db/schema.sql) de este
    proyecto, copia todo su contenido, pégalo ahí y dale a **Run**.
-   Esto crea las tablas (`users`, `board_notes`, `hall_images`,
-   `wipe_signups`, `raid_list`).
+   Esto crea todas las tablas de la app (`users`, `board_notes`,
+   `hall_images`, `wipe_signups`, `raid_list`, `wipe_points`,
+   `enemies`, `enemy_teams`, `server_settings` y las de la pestaña
+   Bases: `bases`, `base_votes`, `base_usages`, `base_drafts`,
+   `base_draft_candidates`, `base_draft_votes`).
 5. Ve a **Project Settings → API**. Ahí verás dos cosas que necesitas:
    - **Project URL** → algo como `https://abcdefgh.supabase.co`
    - **service_role key** (dentro de "Project API keys") → una clave
@@ -165,6 +168,41 @@ Con token el límite de peticiones es mucho más alto.
 
 ---
 
+## 3quater. La pestaña Bases 🏰🍌
+
+El repositorio de diseños de la Zerg. Qué tiene:
+
+- **Repositorio:** cada base se guarda con su link de YouTube (la
+  tarjeta muestra la miniatura del vídeo y al pinchar se abre el
+  tutorial), etiquetas de tamaño de equipo (👥 Trío / 🐝 Zerg) y
+  bunker (sí/no), y el coste de construcción separado en 🪨 piedra
+  y ⚙️ metal. Cada base la puede borrar quien la subió, o Gru.
+- **Votación en bananas 🍌:** cada miembro puntúa cada base de 1 a
+  5 bananas. Se muestra la media y cuánta gente ha votado; volver a
+  votar cambia tu voto, y pulsar tu misma puntuación lo retira.
+- **Hoja de servicio 📜:** en cada base se apunta cada vez que la
+  usáis en un wipe: en qué wipe, en qué servidor, cuántos días
+  aguantó y cómo acabó (🏆 sobrevivió, 🌙 raid offline, ⚔️ raid
+  online, 🍂 decay, 🏚️ abandonada). Así cada base acumula historial
+  real de combate.
+- **Cementerio de bases 💀:** todas las muertes (cualquier final que
+  no sea "sobrevivió") aparecen abajo con su causa y sus notas, para
+  el recuerdo y el vacile.
+- **Draft del wipe 🗳️:** antes de un wipe, cualquiera abre un draft
+  eligiendo 2 o más bases candidatas del repositorio; la Zerg vota
+  (un voto por cabeza, se puede cambiar) y quien abrió el draft (o
+  Gru) lo cierra: gana la más votada, se corona con 👑 en el
+  repositorio y se anuncia sola en el tablón de Inicio. Solo puede
+  haber un draft abierto a la vez.
+
+**Si tu base de datos ya existía:** ejecuta en el SQL Editor de
+Supabase el bloque nuevo de `db/schema.sql` (desde el comentario
+`-- BASES — repositorio de diseños de base` hasta el final,
+incluidas las líneas de `enable row level security` de las tablas
+nuevas). Es seguro: no toca ningún dato existente.
+
+---
+
 ## Cosas a tener en cuenta con el plan gratis
 
 - **Render (free):** el servicio se "duerme" tras 15 minutos sin
@@ -188,6 +226,8 @@ Con token el límite de peticiones es mucho más alto.
   es mover esas imágenes a **Supabase Storage** (1 GB gratis aparte,
   pensado justo para archivos) en vez de guardarlas dentro de la
   tabla — es un cambio pequeño y podemos hacerlo cuando haga falta.
+  Las miniaturas de la pestaña Bases no ocupan nada: se cargan
+  directamente de YouTube.
 
 ---
 
@@ -225,7 +265,8 @@ vinicus-y-amigos/
 ├── package.json
 └── public/
     ├── index.html      # Mismo diseño/HTML/CSS de siempre
-    └── app.js           # Lógica de la app, hablando con la API
+    ├── app.js           # Lógica de la app, hablando con la API
+    └── bases.js          # Lógica de la pestaña Bases (se carga tras app.js)
 ```
 
 ## Seguridad
