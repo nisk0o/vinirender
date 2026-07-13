@@ -696,6 +696,119 @@ button.fault-chip:hover { border-color: #ff4d4d; background: rgba(255,77,77,0.15
 .wipe-status.finished { background: var(--color-bg); color: var(--color-text-faint); border: 1px solid var(--color-metal-light); }
 
 @media (max-width: 420px) { .dogtag { padding: 1.75rem 1.4rem 1.5rem; } }
+
+/* ============================================================
+   IN-GAME INTEL (cámaras CCTV + genéticas)
+   ============================================================ */
+.intel-tabs { display: flex; gap: 0.5rem; margin: 0 0 1.4rem; flex-wrap: wrap; }
+.intel-subtab {
+  font-family: var(--font-display); letter-spacing: 0.05em; text-transform: uppercase;
+  font-size: 0.95rem; background: var(--color-bg-raised); border: 1px solid var(--color-metal-light);
+  color: var(--color-text-dim); padding: 0.6rem 1.15rem; border-radius: var(--radius-md);
+  cursor: pointer; transition: all 0.15s ease;
+}
+.intel-subtab:hover { color: var(--color-text); border-color: var(--color-fucsia-dark); }
+.intel-subtab.active { color: #fff; background: var(--color-fucsia); border-color: var(--color-fucsia); box-shadow: var(--shadow-fucsia); }
+.intel-section { display: none; }
+.intel-section.active { display: block; animation: intelFade 0.25s ease; }
+@keyframes intelFade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.intel-note {
+  background: rgba(230,0,126,0.06); border: 1px solid rgba(230,0,126,0.22); border-radius: var(--radius-md);
+  padding: 0.85rem 1.1rem; font-size: 0.85rem; color: var(--color-text-dim); line-height: 1.5; margin-bottom: 1.3rem;
+}
+.intel-note strong { color: var(--color-text); }
+
+/* ---- Cámaras CCTV ---- */
+.intel-cctv-tools { margin-bottom: 1.2rem; }
+.intel-search {
+  width: 100%; background: var(--color-bg-raised); border: 1px solid var(--color-metal-light);
+  color: var(--color-text); border-radius: var(--radius-md); padding: 0.7rem 1rem; font-family: var(--font-body); font-size: 0.9rem;
+}
+.intel-search:focus { outline: none; border-color: var(--color-fucsia); box-shadow: 0 0 0 1px var(--color-fucsia) inset; }
+.intel-cctv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(255px, 1fr)); gap: 1rem; }
+.cctv-monument {
+  background: var(--color-bg-raised); border: 1px solid var(--color-metal); border-radius: var(--radius-md);
+  padding: 0.9rem 1rem 1rem; display: flex; flex-direction: column;
+}
+.cctv-monument-head { font-family: var(--font-display); letter-spacing: 0.04em; font-size: 1.15rem; color: var(--color-fucsia-glow); margin-bottom: 0.15rem; display: flex; align-items: center; gap: 0.4rem; }
+.cctv-monument-count { font-family: var(--font-mono); font-size: 0.6rem; color: var(--color-text-faint); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.7rem; }
+.cctv-code {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
+  background: var(--color-bg); border: 1px solid var(--color-metal); border-radius: var(--radius-sm);
+  padding: 0.5rem 0.7rem; margin-bottom: 0.4rem; cursor: pointer; transition: all 0.12s ease;
+}
+.cctv-code:last-child { margin-bottom: 0; }
+.cctv-code:hover { border-color: var(--color-minion-yellow); background: rgba(255,212,0,0.05); }
+.cctv-code.copied { border-color: #4c9a4c; background: rgba(76,154,76,0.12); }
+.cctv-code-text { font-family: var(--font-mono); font-size: 0.82rem; color: var(--color-text); word-break: break-all; }
+.cctv-code-copy { font-size: 0.7rem; font-family: var(--font-mono); color: var(--color-text-faint); white-space: nowrap; text-transform: uppercase; letter-spacing: 0.05em; }
+.cctv-code.copied .cctv-code-copy { color: #6fce6f; }
+.cctv-empty { color: var(--color-text-faint); font-size: 0.9rem; padding: 1.5rem 0; text-align: center; grid-column: 1 / -1; }
+
+/* ---- Genéticas ---- */
+.gene-legend { display: flex; flex-wrap: wrap; gap: 0.45rem; margin-bottom: 1.2rem; }
+.gene-pill { font-family: var(--font-mono); font-size: 0.68rem; padding: 0.28rem 0.6rem; border-radius: 999px; font-weight: 600; letter-spacing: 0.03em; }
+.gene-G { background: rgba(76,154,76,0.18); color: #7ed67e; border: 1px solid rgba(76,154,76,0.4); }
+.gene-Y { background: rgba(255,212,0,0.15); color: #ffd400; border: 1px solid rgba(255,212,0,0.4); }
+.gene-H { background: rgba(230,0,126,0.15); color: var(--color-fucsia-glow); border: 1px solid rgba(230,0,126,0.4); }
+.gene-W { background: rgba(90,150,220,0.15); color: #74b0e6; border: 1px solid rgba(90,150,220,0.4); }
+.gene-X { background: rgba(120,120,120,0.15); color: #9a9a9a; border: 1px solid rgba(120,120,120,0.4); }
+
+.gene-input-panel { background: var(--color-bg-raised); border: 1px solid var(--color-metal); border-radius: var(--radius-md); padding: 1.1rem 1.2rem; margin-bottom: 1rem; }
+.gene-input-row { display: flex; gap: 0.8rem; align-items: flex-end; flex-wrap: wrap; }
+.gene-input-field { flex: 1; min-width: 180px; }
+.gene-input {
+  width: 100%; background: var(--color-bg); border: 1px solid var(--color-metal-light); color: var(--color-text);
+  border-radius: var(--radius-sm); padding: 0.65rem 0.8rem; font-family: var(--font-mono); font-size: 1.1rem;
+  letter-spacing: 0.35em; text-transform: uppercase;
+}
+.gene-input:focus { outline: none; border-color: var(--color-fucsia); box-shadow: 0 0 0 1px var(--color-fucsia) inset; }
+.gene-quick { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.8rem; }
+.gene-quick-btn {
+  font-family: var(--font-mono); font-size: 0.9rem; width: 2.1rem; height: 2.1rem; border-radius: var(--radius-sm);
+  border: 1px solid var(--color-metal-light); background: var(--color-bg); color: var(--color-text-dim); cursor: pointer; transition: all 0.12s ease; font-weight: 700;
+}
+.gene-quick-btn:hover { border-color: var(--color-fucsia); color: #fff; }
+.gene-quick-btn.gene-quick-back { color: var(--color-danger); }
+.gene-list { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 1rem; }
+.gene-list-empty { color: var(--color-text-faint); font-size: 0.85rem; padding: 0.5rem 0; }
+.gene-chip-row {
+  display: flex; align-items: center; gap: 0.7rem; background: var(--color-bg); border: 1px solid var(--color-metal);
+  border-radius: var(--radius-sm); padding: 0.45rem 0.7rem;
+}
+.gene-chip-index { font-family: var(--font-mono); font-size: 0.7rem; color: var(--color-text-faint); }
+.gene-seq { display: flex; gap: 0.2rem; flex: 1; }
+.gene-cell {
+  width: 1.9rem; height: 1.9rem; display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-mono); font-weight: 700; font-size: 0.95rem; border-radius: 4px;
+}
+.gene-cell.g-G { background: rgba(76,154,76,0.22); color: #7ed67e; }
+.gene-cell.g-Y { background: rgba(255,212,0,0.2); color: #ffd400; }
+.gene-cell.g-H { background: rgba(230,0,126,0.2); color: var(--color-fucsia-glow); }
+.gene-cell.g-W { background: rgba(90,150,220,0.2); color: #74b0e6; }
+.gene-cell.g-X { background: rgba(120,120,120,0.2); color: #9a9a9a; }
+.gene-cell.is-contested { outline: 2px dashed rgba(255,255,255,0.35); outline-offset: -2px; }
+.gene-chip-remove { background: none; border: none; color: var(--color-text-faint); cursor: pointer; font-size: 1rem; padding: 0.2rem 0.4rem; border-radius: 4px; }
+.gene-chip-remove:hover { color: var(--color-danger); background: rgba(255,77,77,0.1); }
+
+.gene-actions { display: flex; align-items: center; gap: 0.8rem; margin-bottom: 1.3rem; }
+.gene-clear-btn { background: none; border: 1px solid var(--color-metal-light); color: var(--color-text-faint); padding: 0.55rem 0.9rem; border-radius: var(--radius-sm); cursor: pointer; font-family: var(--font-body); font-size: 0.82rem; }
+.gene-clear-btn:hover { color: var(--color-danger); border-color: var(--color-danger); }
+
+.gene-results { display: flex; flex-direction: column; gap: 1rem; }
+.gene-result-block { background: var(--color-bg-raised); border: 1px solid var(--color-metal); border-radius: var(--radius-md); padding: 1.1rem 1.2rem; }
+.gene-result-title { font-family: var(--font-display); letter-spacing: 0.04em; font-size: 1.2rem; color: var(--color-text); margin-bottom: 0.8rem; display: flex; align-items: center; gap: 0.5rem; }
+.gene-best-card { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; padding: 0.6rem 0; }
+.gene-best-badge { font-family: var(--font-mono); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; background: rgba(255,212,0,0.15); color: var(--color-minion-yellow); border: 1px solid rgba(255,212,0,0.4); padding: 0.25rem 0.6rem; border-radius: 999px; }
+.gene-outcome-row { display: flex; align-items: center; gap: 0.8rem; padding: 0.55rem 0; border-bottom: 1px solid rgba(255,255,255,0.05); flex-wrap: wrap; }
+.gene-outcome-row:last-child { border-bottom: none; }
+.gene-prob { font-family: var(--font-mono); font-size: 0.85rem; color: var(--color-text-dim); min-width: 3.5rem; }
+.gene-prob.is-guaranteed { color: #7ed67e; }
+.gene-bar { flex: 1; min-width: 90px; height: 7px; background: var(--color-bg); border-radius: 999px; overflow: hidden; }
+.gene-bar-fill { height: 100%; background: linear-gradient(90deg, var(--color-fucsia-dark), var(--color-fucsia-glow)); border-radius: 999px; }
+.gene-outcome-quality { font-family: var(--font-mono); font-size: 0.68rem; color: var(--color-text-faint); white-space: nowrap; }
+.gene-error { color: var(--color-danger); font-size: 0.88rem; padding: 0.4rem 0; }
+@media (max-width: 520px) { .gene-cell { width: 1.6rem; height: 1.6rem; font-size: 0.85rem; } }
 </style>
 </head>
 <body>
@@ -756,6 +869,7 @@ button.fault-chip:hover { border-color: #ff4d4d; background: rgba(255,77,77,0.15
     <button class="nav-tab" data-view="stats"><span class="tab-icon">📊</span> Estadísticas</button>
     <button class="nav-tab" data-view="enemigos"><span class="tab-icon">🎯</span> Enemigos</button>
     <button class="nav-tab" data-view="raidcalc"><span class="tab-icon">🧨</span> Raideo</button>
+    <button class="nav-tab" data-view="intel"><span class="tab-icon">🛰️</span> Intel</button>
     <button class="nav-tab" data-view="roles"><span class="tab-icon">🎡</span> Roles</button>
     <button class="nav-tab" data-view="taquilla"><span class="tab-icon">🔐</span> Taquilla</button>
   </nav>
@@ -1002,6 +1116,66 @@ button.fault-chip:hover { border-color: #ff4d4d; background: rgba(255,77,77,0.15
       <div class="raid-totals" id="raid-totals"></div>
     </div>
 
+    <!-- VISTA: IN-GAME INTEL -->
+    <div class="view" id="view-intel">
+      <div class="taquilla-head">
+        <p class="welcome-eyebrow">🛰️ Herramientas del juego</p>
+        <h1 class="welcome-title">In-Game <span>Intel</span></h1>
+        <p class="welcome-text">El maletín de herramientas de la Zerg: códigos de las cámaras CCTV de los monumentos listos para copiar, y una calculadora de genéticas para sacar la semilla perfecta.</p>
+      </div>
+
+      <div class="intel-tabs" id="intel-subtabs">
+        <button class="intel-subtab active" data-intel="cctv" type="button">📹 Cámaras CCTV</button>
+        <button class="intel-subtab" data-intel="genetics" type="button">🧬 Genéticas</button>
+      </div>
+
+      <!-- SUBSECCIÓN: CÁMARAS CCTV -->
+      <div class="intel-section active" id="intel-cctv">
+        <div class="intel-note">
+          📹 Códigos de las cámaras CCT de los monumentos (servidores <strong>vanilla</strong>). Pon una Computer Station, pulsa <em>Add</em> y pega el código. Toca cualquier código para copiarlo.
+          <br>⚠️ Las cámaras de la <strong>Base Militar Abandonada</strong> y los <strong>Laboratorios Submarinos</strong> se generan al azar en cada servidor, así que no tienen código fijo: hay que leerlos in-game.
+        </div>
+        <div class="intel-cctv-tools">
+          <input type="text" id="cctv-search" class="intel-search" placeholder="🔎 Buscar cámara o monumento (ej. oilrig, dome, silo...)" />
+        </div>
+        <div class="intel-cctv-grid" id="cctv-grid"></div>
+      </div>
+
+      <!-- SUBSECCIÓN: GENÉTICAS -->
+      <div class="intel-section" id="intel-genetics">
+        <div class="intel-note">
+          🧬 Mete las genéticas de las semillas/clones que tengas (6 letras cada una, con <strong>G</strong> crecimiento, <strong>Y</strong> cosecha, <strong>H</strong> resistencia, <strong>W</strong> agua, <strong>X</strong> vacío) y te decimos qué semillas pueden salir al cruzarlas y con qué probabilidad. Pesos: <strong>G / Y / H = 0.6</strong> · <strong>W / X = 1.0</strong>. Gana el gen con más peso sumado en cada posición; si empatan, es a suerte.
+        </div>
+
+        <div class="gene-legend">
+          <span class="gene-pill gene-G">G · Crecimiento</span>
+          <span class="gene-pill gene-Y">Y · Cosecha</span>
+          <span class="gene-pill gene-H">H · Resistencia</span>
+          <span class="gene-pill gene-W">W · Agua</span>
+          <span class="gene-pill gene-X">X · Vacío</span>
+        </div>
+
+        <div class="gene-input-panel">
+          <div class="gene-input-row">
+            <div class="field gene-input-field">
+              <label for="gene-input">Añadir genética (6 letras: G Y H W X)</label>
+              <input type="text" id="gene-input" class="gene-input" maxlength="6" autocomplete="off" spellcheck="false" placeholder="ej. GGYYYY" />
+            </div>
+            <button class="btn" id="gene-add-btn" type="button">+ Añadir planta</button>
+          </div>
+          <div class="gene-quick" id="gene-quick"></div>
+          <div class="gene-list" id="gene-list"></div>
+        </div>
+
+        <div class="gene-actions">
+          <button class="btn" id="gene-calc-btn" type="button">🧮 Calcular cruce</button>
+          <button class="gene-clear-btn" id="gene-clear-btn" type="button">Vaciar</button>
+        </div>
+
+        <div class="gene-results" id="gene-results"></div>
+      </div>
+    </div>
+
     <!-- VISTA: ROLES (ruletas) -->
     <div class="view" id="view-roles">
       <div class="taquilla-head">
@@ -1174,5 +1348,6 @@ button.fault-chip:hover { border-color: #ff4d4d; background: rgba(255,77,77,0.15
 
 <script src="/app.js"></script>
 <script src="/bases.js"></script>
+<script src="/intel.js"></script>
 </body>
 </html>
