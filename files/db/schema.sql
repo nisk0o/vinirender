@@ -99,6 +99,23 @@ create table if not exists server_settings (
   bm_server_id text not null default ''
 );
 
+-- Equipos enemigos: además del nombre guardamos cuántos son y en
+-- qué cuadrante del mapa viven (ej. "K13"). Los enemigos se siguen
+-- vinculando a su equipo por el nombre (columna "team" de enemies).
+create table if not exists enemy_teams (
+  id        bigint generated always as identity primary key,
+  server_id text not null,
+  name      text not null,
+  size      int,
+  quadrant  text default '',
+  ts        bigint not null
+);
+
+-- Evita dos equipos con el mismo nombre en el mismo servidor
+-- (ignorando mayúsculas/minúsculas).
+create unique index if not exists enemy_teams_server_name_idx
+  on enemy_teams (server_id, lower(name));
+
 -- Row Level Security: la app solo habla con Supabase desde el
 -- backend Node usando la service_role key, que se salta RLS por
 -- diseño. Aun así dejamos RLS activada y sin políticas públicas,
@@ -112,3 +129,4 @@ alter table wipe_points  enable row level security;
 alter table raid_list    enable row level security;
 alter table enemies      enable row level security;
 alter table server_settings enable row level security;
+alter table enemy_teams  enable row level security;
