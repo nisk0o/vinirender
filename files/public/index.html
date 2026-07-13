@@ -347,6 +347,102 @@ button.fault-chip:hover { border-color: #ff4d4d; background: rgba(255,77,77,0.15
 .enemy-card-delete { flex: 0 0 auto; width: 30px; height: 30px; border-radius: 50%; background: transparent; border: 1.5px solid var(--color-metal-light); color: var(--color-text-dim); font-size: 0.8rem; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s ease; }
 .enemy-card-delete:hover { border-color: var(--color-danger); color: var(--color-danger); }
 
+/* ---- Bases: repositorio, bananas, hoja de servicio y draft ---- */
+.base-add-form { margin-bottom: 1.75rem; }
+.bases-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem; }
+.bases-empty { text-align: center; padding: 3rem 1rem; color: var(--color-text-faint); font-family: var(--font-mono); font-size: 0.85rem; grid-column: 1 / -1; }
+.base-card { border: 1px solid rgba(255,255,255,0.08); border-radius: var(--radius-md); background: var(--color-bg-raised); overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 6px 16px rgba(0,0,0,0.22); transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.15s ease; }
+.base-card:hover { transform: translateY(-3px); border-color: rgba(230,0,126,0.45); box-shadow: 0 12px 26px rgba(0,0,0,0.34); }
+.base-card.is-winner { border-color: var(--color-minion-yellow); box-shadow: 0 0 0 1px var(--color-minion-yellow) inset, 0 12px 26px rgba(0,0,0,0.34); }
+.base-thumb { position: relative; display: block; aspect-ratio: 16 / 9; background: var(--color-metal); text-decoration: none; overflow: hidden; }
+.base-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; transition: transform 0.25s ease; }
+.base-thumb:hover img { transform: scale(1.04); }
+.base-thumb-placeholder { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; font-size: 2.6rem; color: var(--color-text-faint); }
+.base-thumb-play { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.25); opacity: 0; transition: opacity 0.18s ease; font-size: 2.2rem; }
+.base-thumb:hover .base-thumb-play { opacity: 1; }
+.base-winner-ribbon { position: absolute; top: 0.55rem; left: 0.55rem; background: var(--color-minion-yellow); color: #1c1607; font-family: var(--font-mono); font-size: 0.6rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; border-radius: 999px; padding: 0.25rem 0.6rem; box-shadow: 0 4px 10px rgba(0,0,0,0.4); }
+.base-card-body { padding: 0.9rem 1rem 1rem; display: flex; flex-direction: column; gap: 0.6rem; flex: 1; }
+.base-card-title-row { display: flex; align-items: flex-start; gap: 0.6rem; }
+.base-card-name { font-family: var(--font-display); font-size: 1.15rem; letter-spacing: 0.02em; color: var(--color-text); flex: 1; line-height: 1.1; }
+.base-card-delete { flex: 0 0 auto; width: 26px; height: 26px; border-radius: 50%; background: transparent; border: 1.5px solid var(--color-metal-light); color: var(--color-text-dim); font-size: 0.72rem; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s ease; }
+.base-card-delete:hover { border-color: var(--color-danger); color: var(--color-danger); }
+.base-chips { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.base-chip { font-family: var(--font-mono); font-size: 0.64rem; letter-spacing: 0.03em; color: var(--color-text-dim); background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.09); border-radius: 999px; padding: 0.22rem 0.55rem; white-space: nowrap; }
+.base-chip.is-bunker { color: var(--color-minion-yellow); border-color: rgba(255,212,0,0.35); background: rgba(255,212,0,0.08); }
+.base-chip.is-team { color: var(--color-fucsia-glow); border-color: rgba(230,0,126,0.35); background: rgba(230,0,126,0.08); }
+.base-card-notes { font-size: 0.8rem; color: var(--color-text-dim); line-height: 1.45; }
+.banana-box { border-top: 1px dashed rgba(255,255,255,0.08); padding-top: 0.6rem; }
+.banana-row { display: flex; align-items: center; gap: 0.15rem; }
+.banana-btn { background: none; border: none; cursor: pointer; font-size: 1.25rem; line-height: 1; padding: 0.1rem; filter: grayscale(1) opacity(0.35); transition: filter 0.12s ease, transform 0.12s ease; }
+.banana-btn.is-filled { filter: none; }
+.banana-btn:hover { transform: scale(1.2) rotate(-8deg); filter: none; }
+.banana-meta { font-family: var(--font-mono); font-size: 0.66rem; color: var(--color-text-faint); letter-spacing: 0.03em; margin-top: 0.3rem; }
+.banana-meta strong { color: var(--color-minion-yellow); font-weight: 600; }
+.base-usage-box { border-top: 1px dashed rgba(255,255,255,0.08); padding-top: 0.6rem; margin-top: auto; }
+.base-usage-summary { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap; }
+.base-usage-stats { font-family: var(--font-mono); font-size: 0.66rem; color: var(--color-text-dim); letter-spacing: 0.03em; }
+.base-usage-add-btn { background: none; border: 1px solid var(--color-metal-light); border-radius: 6px; color: var(--color-text-dim); font-family: var(--font-mono); font-size: 0.64rem; letter-spacing: 0.04em; padding: 0.32rem 0.6rem; cursor: pointer; transition: all 0.15s ease; white-space: nowrap; }
+.base-usage-add-btn:hover { border-color: var(--color-fucsia); color: var(--color-fucsia-glow); }
+.base-usage-list { display: flex; flex-direction: column; gap: 0.3rem; margin-top: 0.5rem; }
+.base-usage-item { display: flex; align-items: baseline; gap: 0.45rem; font-family: var(--font-mono); font-size: 0.66rem; color: var(--color-text-faint); line-height: 1.45; }
+.base-usage-item .usage-outcome { flex-shrink: 0; }
+.base-usage-item .usage-text { flex: 1; }
+.base-usage-item .usage-text strong { color: var(--color-text-dim); font-weight: 600; }
+.base-usage-item .usage-delete { background: none; border: none; color: var(--color-text-faint); cursor: pointer; font-size: 0.66rem; padding: 0 0.15rem; }
+.base-usage-item .usage-delete:hover { color: var(--color-danger); }
+.base-card-creator { font-family: var(--font-mono); font-size: 0.6rem; color: var(--color-text-faint); letter-spacing: 0.04em; }
+
+/* ---- Bases: cementerio 💀 ---- */
+.bases-cemetery { display: flex; flex-direction: column; gap: 0.55rem; }
+.cemetery-empty { border: 1.5px dashed var(--color-metal-light); border-radius: var(--radius-md); padding: 1.5rem; text-align: center; color: var(--color-text-faint); font-family: var(--font-mono); font-size: 0.8rem; }
+.cemetery-row { display: flex; align-items: baseline; gap: 0.7rem; flex-wrap: wrap; background: var(--color-bg-raised); border: 1px solid rgba(255,255,255,0.07); border-left: 3px solid var(--color-danger); border-radius: var(--radius-md); padding: 0.7rem 1rem; }
+.cemetery-skull { flex-shrink: 0; font-size: 1rem; }
+.cemetery-name { font-family: var(--font-display); font-size: 1rem; letter-spacing: 0.02em; color: var(--color-text); }
+.cemetery-detail { font-family: var(--font-mono); font-size: 0.68rem; color: var(--color-text-dim); letter-spacing: 0.02em; }
+.cemetery-cause { font-family: var(--font-mono); font-size: 0.68rem; color: var(--color-danger); }
+.cemetery-notes { width: 100%; font-size: 0.78rem; color: var(--color-text-faint); font-style: italic; }
+
+/* ---- Bases: draft del wipe 🗳️ ---- */
+.bases-draft { margin-bottom: 1.75rem; }
+.draft-box { background: rgba(230,0,126,0.05); border: 1px solid rgba(230,0,126,0.4); border-radius: var(--radius-md); padding: 1.1rem 1.3rem; }
+.draft-box.is-closed { background: rgba(255,212,0,0.05); border-color: rgba(255,212,0,0.4); }
+.draft-head { display: flex; align-items: baseline; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 0.9rem; }
+.draft-title { font-family: var(--font-display); font-size: 1.2rem; letter-spacing: 0.03em; color: var(--color-fucsia-glow); flex: 1; }
+.draft-box.is-closed .draft-title { color: var(--color-minion-yellow); }
+.draft-meta { font-family: var(--font-mono); font-size: 0.66rem; color: var(--color-text-faint); letter-spacing: 0.03em; }
+.draft-actions { display: flex; gap: 0.45rem; }
+.draft-action-btn { font-family: var(--font-mono); font-size: 0.68rem; letter-spacing: 0.04em; padding: 0.38rem 0.7rem; border-radius: 6px; border: 1px solid; background: transparent; cursor: pointer; transition: background 0.15s ease; }
+.draft-action-btn.is-close { border-color: var(--color-minion-yellow); color: var(--color-minion-yellow); }
+.draft-action-btn.is-close:hover { background: rgba(255,212,0,0.14); }
+.draft-action-btn.is-delete { border-color: var(--color-metal-light); color: var(--color-text-dim); }
+.draft-action-btn.is-delete:hover { border-color: var(--color-danger); color: var(--color-danger); }
+.draft-candidates { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 0.75rem; }
+.draft-candidate { background: var(--color-bg-raised); border: 1.5px solid rgba(255,255,255,0.09); border-radius: var(--radius-md); padding: 0.7rem 0.8rem; display: flex; flex-direction: column; gap: 0.5rem; transition: border-color 0.15s ease; }
+.draft-candidate.is-my-vote { border-color: var(--color-fucsia); box-shadow: 0 0 10px rgba(230,0,126,0.2); }
+.draft-candidate.is-winner { border-color: var(--color-minion-yellow); box-shadow: 0 0 12px rgba(255,212,0,0.25); }
+.draft-candidate-head { display: flex; align-items: center; gap: 0.6rem; }
+.draft-candidate-thumb { flex-shrink: 0; width: 64px; height: 36px; border-radius: 4px; background: var(--color-metal); overflow: hidden; display: flex; align-items: center; justify-content: center; font-size: 1rem; color: var(--color-text-faint); }
+.draft-candidate-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.draft-candidate-name { font-family: var(--font-display); font-size: 0.95rem; letter-spacing: 0.02em; color: var(--color-text); line-height: 1.1; }
+.draft-candidate-votes { display: flex; align-items: center; gap: 0.35rem; min-height: 22px; }
+.draft-vote-count { font-family: var(--font-mono); font-size: 0.66rem; color: var(--color-text-dim); }
+.draft-voters { display: flex; }
+.draft-voters .mini-avatar { margin-left: -6px; border: 1.5px solid var(--color-bg-raised); }
+.draft-voters .mini-avatar:first-child { margin-left: 0; }
+.draft-vote-btn { width: 100%; font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.05em; padding: 0.45rem 0.6rem; border-radius: 6px; border: 1.5px solid var(--color-fucsia); background: transparent; color: var(--color-fucsia-glow); cursor: pointer; transition: all 0.15s ease; }
+.draft-vote-btn:hover { background: rgba(230,0,126,0.16); }
+.draft-vote-btn.is-voted { background: var(--color-fucsia); color: #0e0e0f; }
+.draft-empty-note { border: 1.5px dashed rgba(230,0,126,0.4); border-radius: var(--radius-md); padding: 1rem 1.3rem; display: flex; align-items: center; justify-content: space-between; gap: 0.85rem; flex-wrap: wrap; }
+.draft-empty-text { font-family: var(--font-mono); font-size: 0.74rem; color: var(--color-text-dim); line-height: 1.5; flex: 1; min-width: 220px; }
+.draft-new-btn { flex-shrink: 0; padding: 0.6rem 1.1rem; font-size: 0.85rem; }
+.draft-winner-line { font-family: var(--font-mono); font-size: 0.72rem; color: var(--color-text-dim); margin-bottom: 0.9rem; }
+.draft-winner-line strong { color: var(--color-minion-yellow); }
+.draft-candidate-picker { display: flex; flex-direction: column; gap: 0.4rem; max-height: 220px; overflow-y: auto; padding-right: 0.25rem; }
+.draft-pick-option { display: flex; align-items: center; gap: 0.55rem; background: var(--color-bg); border: 1.5px solid rgba(255,255,255,0.08); border-radius: var(--radius-sm); padding: 0.5rem 0.7rem; cursor: pointer; font-size: 0.88rem; color: var(--color-text-dim); transition: border-color 0.15s ease; }
+.draft-pick-option:hover { border-color: var(--color-fucsia); }
+.draft-pick-option input { accent-color: var(--color-fucsia); }
+.draft-pick-option.is-checked { border-color: var(--color-fucsia); color: var(--color-text); background: rgba(230,0,126,0.07); }
+
 /* ---- Calculadora de Raideo ---- */
 .raid-note { background: rgba(255,212,0,0.08); border: 1px solid rgba(255,212,0,0.25); border-radius: var(--radius-md); padding: 0.9rem 1.1rem; font-family: var(--font-mono); font-size: 0.74rem; line-height: 1.55; color: var(--color-minion-yellow); margin-bottom: 1.75rem; }
 .raid-note strong { color: var(--color-text); }
@@ -733,15 +829,63 @@ button.fault-chip:hover { border-color: #ff4d4d; background: rgba(255,77,77,0.15
     <!-- VISTA: BASES -->
     <div class="view" id="view-bases">
       <div class="taquilla-head">
-        <p class="welcome-eyebrow">🏰 Coordenadas y diseños</p>
+        <p class="welcome-eyebrow">🏰 Repositorio de diseños</p>
         <h1 class="welcome-title">Nuestras <span>Bases</span></h1>
-        <p class="welcome-text">Aquí guardaremos las coordenadas, diseños y capturas de nuestras bases del wipe. De momento es solo la pestaña preparada, sin datos todavía.</p>
+        <p class="welcome-text">El arsenal de la Zerg: guarda las bases que encontréis en YouTube, puntúalas en bananas, apunta cómo les fue en cada wipe y montad un draft para elegir la del próximo.</p>
       </div>
 
-      <div class="coming-soon">
-        <strong>Próximamente</strong>
-        Coordenadas por servidor · Diseños de base (blueprints) · Capturas de la base · Notas de defensa y TC
+      <div class="bases-draft" id="bases-draft"></div>
+
+      <div class="enemy-add-form base-add-form">
+        <div class="enemy-add-title">➕ Añadir base al repositorio</div>
+        <form id="base-add-form-el">
+          <div class="enemy-add-row">
+            <div class="field">
+              <label for="base-name-input">Nombre de la base</label>
+              <input type="text" id="base-name-input" placeholder="ej. La Fortaleza del Mal" maxlength="80" required />
+            </div>
+            <div class="field">
+              <label for="base-youtube-input">Link de YouTube</label>
+              <input type="url" id="base-youtube-input" placeholder="https://youtube.com/watch?v=..." />
+            </div>
+            <div class="field enemy-field-small">
+              <label for="base-teamsize-select">Equipo</label>
+              <select id="base-teamsize-select">
+                <option value="trio">👥 Trío</option>
+                <option value="zerg">🐝 Zerg</option>
+              </select>
+            </div>
+            <div class="field enemy-field-small">
+              <label for="base-bunker-select">¿Bunker?</label>
+              <select id="base-bunker-select">
+                <option value="false">Sin bunker</option>
+                <option value="true">🛡️ Con bunker</option>
+              </select>
+            </div>
+            <div class="field enemy-field-small">
+              <label for="base-stone-input">Coste piedra</label>
+              <input type="number" id="base-stone-input" min="0" step="500" placeholder="ej. 25000" />
+            </div>
+            <div class="field enemy-field-small">
+              <label for="base-metal-input">Coste metal</label>
+              <input type="number" id="base-metal-input" min="0" step="500" placeholder="ej. 8000" />
+            </div>
+            <div class="field">
+              <label for="base-notes-input">Notas (opcional)</label>
+              <input type="text" id="base-notes-input" maxlength="500" placeholder="ej. el bunker se sella quitando un pilar" />
+            </div>
+            <button type="submit" class="btn enemy-add-submit">Guardar</button>
+          </div>
+        </form>
       </div>
+
+      <div class="bases-grid" id="bases-grid"></div>
+
+      <div class="section-label" style="margin-top:2.75rem;">
+        <span class="eyebrow">💀 Cementerio de bases</span>
+        <span class="line"></span>
+      </div>
+      <div class="bases-cemetery" id="bases-cemetery"></div>
     </div>
 
     <!-- VISTA: ESTADÍSTICAS -->
@@ -968,7 +1112,67 @@ button.fault-chip:hover { border-color: #ff4d4d; background: rgba(255,77,77,0.15
   </div>
 </div>
 
+<!-- Modal: apuntar un uso en la hoja de servicio de una base -->
+<div class="role-modal-overlay" id="base-usage-modal-overlay">
+  <div class="role-modal">
+    <div class="role-modal-head">
+      <div>
+        <div class="role-modal-title">📜 Hoja de servicio</div>
+        <div class="role-modal-name" id="base-usage-modal-name">—</div>
+      </div>
+    </div>
+    <form id="base-usage-form">
+      <div class="field">
+        <label for="base-usage-wipe">¿En qué wipe se usó?</label>
+        <input type="text" id="base-usage-wipe" placeholder="ej. Thursday 16 jul" maxlength="60" required />
+      </div>
+      <div class="field">
+        <label for="base-usage-server">Servidor</label>
+        <select id="base-usage-server"></select>
+      </div>
+      <div class="field">
+        <label for="base-usage-days">¿Cuántos días aguantó?</label>
+        <input type="number" id="base-usage-days" min="0" max="31" placeholder="ej. 3" />
+      </div>
+      <div class="field">
+        <label for="base-usage-outcome">¿Cómo acabó?</label>
+        <select id="base-usage-outcome"></select>
+      </div>
+      <div class="field">
+        <label for="base-usage-notes">Notas (opcional)</label>
+        <input type="text" id="base-usage-notes" maxlength="280" placeholder="ej. nos offlinearon 6 con 40 rockets" />
+      </div>
+      <button type="submit" class="btn" style="width:100%; margin-bottom:0.6rem;">Apuntar</button>
+      <button type="button" class="role-modal-cancel" id="base-usage-cancel">Cancelar</button>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: abrir un draft de bases para el próximo wipe -->
+<div class="role-modal-overlay" id="base-draft-modal-overlay">
+  <div class="role-modal">
+    <div class="role-modal-head">
+      <div>
+        <div class="role-modal-title">🗳️ Nuevo draft</div>
+        <div class="role-modal-name">¿Qué base construimos?</div>
+      </div>
+    </div>
+    <form id="base-draft-form">
+      <div class="field">
+        <label for="base-draft-wipe">¿Para qué wipe?</label>
+        <input type="text" id="base-draft-wipe" placeholder="ej. Thursday 16 jul" maxlength="60" required />
+      </div>
+      <div class="field">
+        <label>Bases candidatas (elige 2 o más)</label>
+        <div class="draft-candidate-picker" id="base-draft-candidates"></div>
+      </div>
+      <button type="submit" class="btn" style="width:100%; margin-bottom:0.6rem;">Abrir draft</button>
+      <button type="button" class="role-modal-cancel" id="base-draft-cancel">Cancelar</button>
+    </form>
+  </div>
+</div>
 
 <script src="/app.js"></script>
+<script src="/bases.js"></script>
 </body>
 </html>
