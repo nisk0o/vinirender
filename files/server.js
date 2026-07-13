@@ -162,6 +162,13 @@ function rowToNote(row) { return { id: row.id, username: row.username, text: row
 function rowToImage(row) { return { id: row.id, username: row.username, dataUrl: row.data_url, ts: Number(row.ts) }; }
 function rowToRaid(row) { return { id: row.id, structureId: row.structure_id, explosiveKey: row.explosive_key, qty: row.qty }; }
 function rowToEnemy(row) { return { id: row.id, serverId: row.server_id, name: row.name, steamId: row.steam_id || '', team: row.team || '', lastSeen: row.last_seen ? Number(row.last_seen) : null, ts: Number(row.ts) }; }
+function rowToEnemyTeam(row) {
+  return {
+    id: row.id, serverId: row.server_id, name: row.name,
+    size: row.size == null ? null : Number(row.size),
+    quadrant: row.quadrant || '', ts: Number(row.ts)
+  };
+}
 
 // ------------------------------------------------------------
 // BattleMetrics: consultamos su API pública SIEMPRE desde el
@@ -860,6 +867,70 @@ async function handleApi(req, res, pathname) {
       onlineIds,
       fetchedAt: bm.fetchedAt
     });
+  }
+
+  // ---- EQUIPOS ENEMIGOS (por servidor, con tamaño y cuadrante) ----
+  if (pathname === '/api/enemy-teams' && method === 'GET') {
+    if (!requireAuth()) return;
+    const rows = await db.select('enemy_teams', 'select=*&order=name.asc');
+    return sendJSON(res, 200, { teams: (rows || []).map(rowToEnemyTeam) });
+  }
+  if (pathname === '/api/enemy-teams' && method === 'POST') {
+    if (!requireAuth()) return;
+    let body;
+    try { body = await readBody(req); } catch (e) { return sendJSON(res, 400, { error: 'Petición inválida.' }); }
+    const serverId = String(body.serverId || '').trim();
+    const name = String(body.name || '').trim();
+    const quadrant = String(body.quadrant || '').trim();
+    let size = parseInt(body.size, 10);
+    if (!size || size < 1) size = null;
+    if (!serverId) return sendJSON(res, 400, { error: 'Falta el servidor.' });
+    if (!name) return sendJSON(res, 400, { error: 'El nombre del equipo no puede estar vacío.' });
+    const existing = await db.select('enemy_teams', `select=id&server_id=eq.${encodeURIComponent(serverId)}&name=ilike.${encodeURIComponent(name)}`);
+    if (existing && existing.length > 0) {
+      return sendJSON(res, 400, { error: 'Ya hay un equipo con ese nombre en este servidor.' });
+    }
+    const rows = await db.insert('enemy_teams', { server_id: serverId, name, size, quadrant, ts: Date.now() });
+    return sendJSON(res, 201, { team: rowToEnemyTeam(rows[0]) });
+  }
+  if ((m = pathname.match(/^\/api\/enemy-teams\/(\d+)$/)) && method === 'PATCH') {
+    if (!requireAuth()) return;
+    let body;
+    try { body = await readBody(req); } catch (e) { return sendJSON(res, 400, { error: 'Petición inválida.' }); }
+    const patch = {};
+    if (typeof body.name === 'string') {
+      const name = body.name.trim();
+      if (!name) return sendJSON(res, 400, { error: 'El nombre del equipo no puede estar vacío.' });
+      patch.name = name;
+    }
+    if (body.size !== undefined) {
+      let size = parseInt(body.size, 10);
+      patch.size = (!size || size < 1) ? null : size;
+    }
+    if (typeof body.quadrant === 'string') patch.quadrant = body.quadrant.trim();
+    const id = Number(m[1]);
+    const prevRows = await db.select('enemy_teams', `select=*&id=eq.${id}`);
+    if (!prevRows || !prevRows[0]) return sendJSON(res, 404, { error: 'Equipo no encontrado.' });
+    const prev = rowToEnemyTeam(prevRows[0]);
+    const rows = await db.update('enemy_teams', `id=eq.${id}`, patch);
+    // Si cambia el nombre, arrastramos a los enemigos que estaban
+    // vinculados al nombre antiguo para no dejarlos huérfanos.
+    if (patch.name && patch.name !== prev.name) {
+      await db.update('enemies', `server_id=eq.${encodeURIComponent(prev.serverId)}&team=eq.${encodeURIComponent(prev.name)}`, { team: patch.name });
+    }
+    return sendJSON(res, 200, { team: rowToEnemyTeam(rows[0]) });
+  }
+  if ((m = pathname.match(/^\/api\/enemy-teams\/(\d+)$/)) && method === 'DELETE') {
+    if (!requireAuth()) return;
+    const id = Number(m[1]);
+    const rows = await db.select('enemy_teams', `select=*&id=eq.${id}`);
+    if (rows && rows[0]) {
+      const team = rowToEnemyTeam(rows[0]);
+      await db.remove('enemy_teams', `id=eq.${id}`);
+      // Los enemigos del equipo borrado pasan a "Sin equipo".
+      await db.update('enemies', `server_id=eq.${encodeURIComponent(team.serverId)}&team=eq.${encodeURIComponent(team.name)}`, { team: '' });
+    }
+    return sendJSON(res, 200, { ok: true });
   }
 
   // ---- ENEMIGOS (por servidor, agrupados por equipo) ----
