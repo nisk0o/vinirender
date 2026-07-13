@@ -1688,7 +1688,6 @@ function setupNav() {
       } else {
         stopEnemiesAutoRefresh();
       }
-      if (view === 'raidcalc') { await fetchRaid(); renderRaidCompare(); renderRaidList(); }
       if (view === 'roles') refreshWheelsIfIdle();
     });
   });
@@ -2522,7 +2521,9 @@ setupRoleModal();
 setupBoard();
 setupStats();
 setupEnemies();
-setupRaidCalc();
+// La calculadora de raideo ahora vive dentro de la pestaña "Intel"
+// (intel.js), con un diseño renovado. Se elimina la inicialización
+// antigua para no chocar con los elementos ya retirados de esta vista.
 setupRoles();
 
 // Si ya había una sesión activa (cookie), entra directo sin pedir login otra vez.

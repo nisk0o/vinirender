@@ -444,7 +444,393 @@
   }
 
   /* ============================================================
-     SUB-PESTAÑAS (Cámaras / Genéticas)
+     3) CALCULADORA DE RAIDEO (rediseño con fotos de items)
+     La lista se guarda en el backend (/api/raid) igual que antes,
+     así que la ve toda la Zerg. Usa api() y showToast() de app.js.
+     ============================================================ */
+
+  // --- Fotos de items (mismas imágenes que usa rustexplore.com) ---
+  // Su CDN permite enlazado directo y usa los shortnames estándar de
+  // Rust. Si alguna imagen fallara, cae a un monograma limpio para no
+  // romper el diseño.
+  var ITEM_IMG_BASE = 'https://rustexplore.com/images/40/';
+
+  function itemImg(shortname, monogram) {
+    var wrap = document.createElement('span');
+    wrap.className = 'item-img';
+    if (!shortname) {
+      wrap.classList.add('fallback');
+      wrap.textContent = monogram || '?';
+      return wrap;
+    }
+    var img = document.createElement('img');
+    img.loading = 'lazy';
+    img.alt = '';
+    img.src = ITEM_IMG_BASE + shortname + '.webp';
+    img.addEventListener('error', function () {
+      wrap.classList.add('fallback');
+      wrap.textContent = monogram || '?';
+      if (img.parentNode === wrap) wrap.removeChild(img);
+    });
+    wrap.appendChild(img);
+    return wrap;
+  }
+
+  // Icono SVG para los muros (no existe foto de item para los bloques
+  // de construcción): un ladrillo estilizado tintado según el tier.
+  function wallSvg(color) {
+    var wrap = document.createElement('span');
+    wrap.className = 'item-img';
+    wrap.innerHTML =
+      '<svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">' +
+      '<g fill="' + color + '" stroke="rgba(0,0,0,0.35)" stroke-width="1">' +
+      '<rect x="4" y="8" width="18" height="9" rx="1"/><rect x="26" y="8" width="18" height="9" rx="1"/>' +
+      '<rect x="-6" y="19" width="18" height="9" rx="1" transform="translate(21 0)"/>' +
+      '<rect x="4" y="19" width="11" height="9" rx="1"/><rect x="37" y="19" width="7" height="9" rx="1"/>' +
+      '<rect x="4" y="30" width="18" height="9" rx="1"/><rect x="26" y="30" width="18" height="9" rx="1"/>' +
+      '</g></svg>';
+    return wrap;
+  }
+
+  // --- Datos de raideo (idénticos a los que ya usabas) ---
+  var R_EXPLOSIVES = {
+    exploAmmo: { name: 'Explosivo 5.56', img: 'ammo.rifle.explosive', mono: '5.56', craft: { sulfur: 25, metalFrag: 5, charcoal: 30 } },
+    beancan:   { name: 'Beancan',        img: 'grenade.beancan',      mono: 'BC',   craft: { sulfur: 120, metalFrag: 20, charcoal: 180 } },
+    satchel:   { name: 'Satchel',        img: 'explosive.satchel',    mono: 'ST',   craft: { sulfur: 480, cloth: 10, metalFrag: 80, charcoal: 720, rope: 1 } },
+    rocket:    { name: 'Cohete',         img: 'ammo.rocket.basic',    mono: 'RK',   craft: { sulfur: 1400, hqm: 4, scrap: 40, charcoal: 1950, metalFrag: 100, cloth: 7.5, animalFat: 22.5 } },
+    c4:        { name: 'C4',             img: 'explosive.timed',      mono: 'C4',   craft: { sulfur: 2200, cloth: 20, techTrash: 2, metalFrag: 200, charcoal: 3000, animalFat: 45 } }
+  };
+  var R_EXPLOSIVE_ORDER = ['exploAmmo', 'beancan', 'satchel', 'rocket', 'c4'];
+
+  var R_RESOURCE_META = {
+    sulfur:    { label: 'Azufre',        img: 'sulfur' },
+    metalFrag: { label: 'Frag. Metal',   img: 'metal.fragments' },
+    charcoal:  { label: 'Carbón',        img: 'charcoal' },
+    cloth:     { label: 'Tela',          img: 'cloth' },
+    rope:      { label: 'Cuerda',        img: 'rope' },
+    hqm:       { label: 'Metal AC',      img: 'metal.refined' },
+    scrap:     { label: 'Chatarra',      img: 'scrap' },
+    animalFat: { label: 'Grasa Animal',  img: 'fat.animal' },
+    techTrash: { label: 'Basura Tec.',   img: 'techparts' }
+  };
+
+  // img: foto de item; wall: color del tier (usa SVG en vez de foto).
+  var R_STRUCTURES = [
+    { id: 'wood-door',     name: 'Puerta Madera',  category: 'Puerta', hp: 200,  img: 'door.hinged.wood',      needs: { exploAmmo: 39,  beancan: 3,   satchel: 1,  rocket: 1,  c4: 1 } },
+    { id: 'metal-door',    name: 'Puerta Chapa',   category: 'Puerta', hp: 250,  img: 'door.hinged.metal',     needs: { exploAmmo: 42,  beancan: 10,  satchel: 3,  rocket: 2,  c4: 1 } },
+    { id: 'garage-door',   name: 'Puerta Garaje',  category: 'Puerta', hp: 600,  img: 'wall.frame.garagedoor', needs: { exploAmmo: 96,  beancan: 24,  satchel: 7,  rocket: 3,  c4: 2 } },
+    { id: 'armored-door',  name: 'Puerta Blindada',category: 'Puerta', hp: 1000, img: 'door.hinged.toptier',   needs: { exploAmmo: 440, beancan: 180, satchel: 40, rocket: 15, c4: 4 }, approx: true },
+    { id: 'tool-cupboard', name: 'Armario TC',     category: 'Deploy', hp: 300,  img: 'cupboard.tool',         needs: { exploAmmo: 110, beancan: 28,  satchel: 6,  rocket: 3,  c4: 2 } },
+    { id: 'twig-wall',     name: 'Muro Ramas',     category: 'Muro',   hp: 10,   wall: '#c7a76a', needs: { exploAmmo: 1,   beancan: 1,   satchel: 1,  rocket: 1,  c4: 1 } },
+    { id: 'wood-wall',     name: 'Muro Madera',    category: 'Muro',   hp: 250,  wall: '#8a5a3a', needs: { exploAmmo: 49,  beancan: 4,   satchel: 1,  rocket: 1,  c4: 1 } },
+    { id: 'stone-wall',    name: 'Muro Piedra',    category: 'Muro',   hp: 500,  wall: '#8f8d88', needs: { exploAmmo: 182, beancan: 46,  satchel: 10, rocket: 4,  c4: 2 } },
+    { id: 'metal-wall',    name: 'Muro Chapa',     category: 'Muro',   hp: 500,  wall: '#5f6a72', needs: { exploAmmo: 182, beancan: 46,  satchel: 10, rocket: 4,  c4: 2 } },
+    { id: 'armored-wall',  name: 'Muro Blindado',  category: 'Muro',   hp: 1000, wall: '#3a4048', needs: { exploAmmo: 440, beancan: 180, satchel: 40, rocket: 15, c4: 4 }, approx: true }
+  ];
+
+  var rStructById = {};
+  R_STRUCTURES.forEach(function (s) { rStructById[s.id] = s; });
+
+  var raidState = { list: [], structId: 'metal-door', exploKey: 'rocket', qty: 1, loaded: false };
+
+  function structImg(s) {
+    return s.wall ? wallSvg(s.wall) : itemImg(s.img, s.name.slice(0, 2).toUpperCase());
+  }
+
+  function rowResources(structureId, explosiveKey, qty) {
+    var s = rStructById[structureId];
+    var e = R_EXPLOSIVES[explosiveKey];
+    var amount = Math.ceil(s.needs[explosiveKey]) * qty;
+    var resources = {};
+    Object.keys(e.craft).forEach(function (res) { resources[res] = e.craft[res] * amount; });
+    return { amount: amount, resources: resources };
+  }
+
+  // El explosivo más barato (por azufre) para la estructura elegida.
+  function cheapestExplosiveFor(structId) {
+    var best = null, bestSulfur = Infinity;
+    R_EXPLOSIVE_ORDER.forEach(function (key) {
+      var r = rowResources(structId, key, 1);
+      var sulfur = r.resources.sulfur || 0;
+      if (sulfur < bestSulfur) { bestSulfur = sulfur; best = key; }
+    });
+    return best;
+  }
+
+  function renderStructGrid() {
+    var grid = document.getElementById('raid2-struct-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+    R_STRUCTURES.forEach(function (s) {
+      var tile = document.createElement('div');
+      tile.className = 'raid2-tile' + (s.id === raidState.structId ? ' selected' : '');
+      tile.appendChild(structImg(s));
+      var name = document.createElement('div');
+      name.className = 'raid2-tile-name';
+      name.textContent = s.name;
+      tile.appendChild(name);
+      var sub = document.createElement('div');
+      sub.className = 'raid2-tile-sub';
+      sub.textContent = s.hp + ' HP' + (s.approx ? ' · ~' : '');
+      tile.appendChild(sub);
+      tile.addEventListener('click', function () {
+        raidState.structId = s.id;
+        renderStructGrid();
+        renderExploGrid();
+      });
+      grid.appendChild(tile);
+    });
+  }
+
+  function renderExploGrid() {
+    var grid = document.getElementById('raid2-explo-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+    var cheapest = cheapestExplosiveFor(raidState.structId);
+    var s = rStructById[raidState.structId];
+
+    // Pista del más barato en la cabecera
+    var hint = document.getElementById('raid2-cheapest-hint');
+    if (hint) hint.textContent = '· más barato: ' + R_EXPLOSIVES[cheapest].name;
+
+    R_EXPLOSIVE_ORDER.forEach(function (key) {
+      var e = R_EXPLOSIVES[key];
+      var needed = s.needs[key];
+      var tile = document.createElement('div');
+      tile.className = 'raid2-tile' + (key === raidState.exploKey ? ' selected' : '');
+      tile.appendChild(itemImg(e.img, e.mono));
+      var name = document.createElement('div');
+      name.className = 'raid2-tile-name';
+      name.textContent = e.name;
+      tile.appendChild(name);
+      var badge = document.createElement('div');
+      badge.className = 'raid2-tile-badge' + (key === cheapest ? ' is-cheapest' : '');
+      badge.textContent = '×' + needed + (key === cheapest ? ' · barato' : '');
+      tile.appendChild(badge);
+      tile.addEventListener('click', function () {
+        raidState.exploKey = key;
+        renderExploGrid();
+      });
+      grid.appendChild(tile);
+    });
+  }
+
+  function renderRaidList() {
+    var listEl = document.getElementById('raid2-list');
+    if (!listEl) return;
+    listEl.innerHTML = '';
+
+    if (!raidState.list.length) {
+      var empty = document.createElement('div');
+      empty.className = 'raid2-empty';
+      empty.textContent = 'Tu plan está vacío. Elige un objetivo y un explosivo arriba, y añádelo.';
+      listEl.appendChild(empty);
+      renderRaidTotals();
+      return;
+    }
+
+    raidState.list.forEach(function (row) {
+      var s = rStructById[row.structureId];
+      var e = R_EXPLOSIVES[row.explosiveKey];
+      if (!s || !e) return;
+      var calc = rowResources(row.structureId, row.explosiveKey, row.qty);
+
+      var rowEl = document.createElement('div');
+      rowEl.className = 'raid2-row';
+
+      // Objetivo
+      var target = document.createElement('div');
+      target.className = 'raid2-row-target';
+      var qty = document.createElement('span');
+      qty.className = 'raid2-row-qty';
+      qty.textContent = '×' + row.qty;
+      target.appendChild(qty);
+      target.appendChild(structImg(s));
+      var nameWrap = document.createElement('div');
+      var name = document.createElement('div');
+      name.className = 'raid2-row-name';
+      name.innerHTML = s.name + (s.approx ? '<span class="raid2-approx">estimado</span>' : '');
+      nameWrap.appendChild(name);
+      target.appendChild(nameWrap);
+      rowEl.appendChild(target);
+
+      // Método
+      var method = document.createElement('div');
+      method.className = 'raid2-row-method';
+      var arrow = document.createElement('span');
+      arrow.className = 'raid2-row-arrow';
+      arrow.textContent = '→';
+      method.appendChild(arrow);
+      var count = document.createElement('span');
+      count.className = 'raid2-row-method-count';
+      count.textContent = calc.amount;
+      method.appendChild(count);
+      method.appendChild(itemImg(e.img, e.mono));
+      var mname = document.createElement('span');
+      mname.className = 'raid2-row-method-name';
+      mname.textContent = e.name;
+      method.appendChild(mname);
+      rowEl.appendChild(method);
+
+      // Quitar
+      var rm = document.createElement('button');
+      rm.className = 'raid2-row-remove';
+      rm.type = 'button';
+      rm.title = 'Quitar de la lista';
+      rm.textContent = '✕';
+      rm.addEventListener('click', function () {
+        apiCall('/raid/' + row.id, { method: 'DELETE' }).then(function () {
+          loadRaid();
+        });
+      });
+      rowEl.appendChild(rm);
+
+      listEl.appendChild(rowEl);
+    });
+
+    renderRaidTotals();
+  }
+
+  function renderRaidTotals() {
+    var wrap = document.getElementById('raid2-totals');
+    if (!wrap) return;
+    wrap.innerHTML = '';
+
+    var title = document.createElement('div');
+    title.className = 'raid2-totals-title';
+    title.textContent = 'Recursos totales';
+    wrap.appendChild(title);
+
+    if (!raidState.list.length) {
+      var empty = document.createElement('div');
+      empty.className = 'raid2-empty';
+      empty.textContent = 'Añade objetivos para ver cuánto necesitas farmear.';
+      wrap.appendChild(empty);
+      return;
+    }
+
+    // Suma de explosivos por tipo + recursos totales
+    var byExplosive = {};
+    var totals = {};
+    raidState.list.forEach(function (row) {
+      var s = rStructById[row.structureId];
+      if (!s) return;
+      var calc = rowResources(row.structureId, row.explosiveKey, row.qty);
+      byExplosive[row.explosiveKey] = (byExplosive[row.explosiveKey] || 0) + calc.amount;
+      Object.keys(calc.resources).forEach(function (res) {
+        totals[res] = (totals[res] || 0) + calc.resources[res];
+      });
+    });
+
+    // Resumen de explosivos a fabricar
+    var summary = document.createElement('div');
+    summary.className = 'raid2-summary';
+    R_EXPLOSIVE_ORDER.forEach(function (key) {
+      if (!byExplosive[key]) return;
+      var e = R_EXPLOSIVES[key];
+      var chip = document.createElement('div');
+      chip.className = 'raid2-summary-chip';
+      chip.appendChild(itemImg(e.img, e.mono));
+      var txt = document.createElement('div');
+      var num = document.createElement('div');
+      num.className = 'raid2-summary-num';
+      num.textContent = byExplosive[key];
+      var label = document.createElement('div');
+      label.className = 'raid2-summary-label';
+      label.textContent = e.name;
+      txt.appendChild(num);
+      txt.appendChild(label);
+      chip.appendChild(txt);
+      summary.appendChild(chip);
+    });
+    wrap.appendChild(summary);
+
+    var resLabel = document.createElement('div');
+    resLabel.className = 'raid2-res-label';
+    resLabel.textContent = 'Materia prima para fabricarlos';
+    wrap.appendChild(resLabel);
+
+    // Recursos ordenados por cantidad (azufre casi siempre primero)
+    var grid = document.createElement('div');
+    grid.className = 'raid2-res-grid';
+    Object.keys(totals).sort(function (a, b) { return totals[b] - totals[a]; }).forEach(function (res) {
+      var meta = R_RESOURCE_META[res];
+      if (!meta) return;
+      var chip = document.createElement('div');
+      chip.className = 'raid2-res-chip';
+      chip.appendChild(itemImg(meta.img, meta.label.slice(0, 2)));
+      var txt = document.createElement('div');
+      var amount = document.createElement('div');
+      amount.className = 'raid2-res-amount';
+      amount.textContent = Math.ceil(totals[res]).toLocaleString('es-ES');
+      var name = document.createElement('div');
+      name.className = 'raid2-res-name';
+      name.textContent = meta.label;
+      txt.appendChild(amount);
+      txt.appendChild(name);
+      chip.appendChild(txt);
+      grid.appendChild(chip);
+    });
+    wrap.appendChild(grid);
+  }
+
+  // Cliente API tolerante: usa el api() global de app.js si existe.
+  function apiCall(path, opts) {
+    if (typeof api === 'function') return api(path, opts);
+    // Fallback mínimo por si intel.js corre aislado (tests).
+    var fetchOpts = { method: (opts && opts.method) || 'GET', credentials: 'same-origin', headers: {} };
+    if (opts && opts.body !== undefined) {
+      fetchOpts.headers['Content-Type'] = 'application/json';
+      fetchOpts.body = JSON.stringify(opts.body);
+    }
+    return fetch('/api' + path, fetchOpts).then(function (r) { return r.json(); });
+  }
+
+  function loadRaid() {
+    return apiCall('/raid').then(function (data) {
+      raidState.list = (data && data.list) || [];
+      raidState.loaded = true;
+      renderRaidList();
+    }).catch(function () {
+      renderRaidList();
+    });
+  }
+
+  function setupRaid() {
+    if (!document.getElementById('intel-raid')) return;
+    renderStructGrid();
+    renderExploGrid();
+    renderRaidList();
+
+    var qtyInput = document.getElementById('raid2-qty-input');
+    document.getElementById('raid2-qty-minus').addEventListener('click', function () {
+      var v = parseInt(qtyInput.value, 10) || 1; qtyInput.value = Math.max(1, v - 1);
+    });
+    document.getElementById('raid2-qty-plus').addEventListener('click', function () {
+      var v = parseInt(qtyInput.value, 10) || 1; qtyInput.value = v + 1;
+    });
+
+    document.getElementById('raid2-add-btn').addEventListener('click', function () {
+      var qty = parseInt(qtyInput.value, 10);
+      if (!qty || qty < 1) qty = 1;
+      apiCall('/raid', { method: 'POST', body: { structureId: raidState.structId, explosiveKey: raidState.exploKey, qty: qty } })
+        .then(function () {
+          qtyInput.value = 1;
+          if (typeof showToast === 'function') showToast(rStructById[raidState.structId].name + ' añadido al plan', 'success');
+          return loadRaid();
+        })
+        .catch(function (e) { if (typeof showToast === 'function') showToast(e.message || 'No se pudo añadir'); });
+    });
+
+    document.getElementById('raid2-clear-btn').addEventListener('click', function () {
+      if (!raidState.list.length) return;
+      apiCall('/raid', { method: 'DELETE' }).then(function () { return loadRaid(); })
+        .catch(function (e) { if (typeof showToast === 'function') showToast(e.message || 'No se pudo vaciar'); });
+    });
+  }
+
+  /* ============================================================
+     SUB-PESTAÑAS (Cámaras / Genéticas / Raideo)
      ============================================================ */
   function setupSubtabs() {
     var tabs = document.querySelectorAll('.intel-subtab');
@@ -456,6 +842,8 @@
         document.querySelectorAll('.intel-section').forEach(function (s) { s.classList.remove('active'); });
         var section = document.getElementById('intel-' + target);
         if (section) section.classList.add('active');
+        // Al abrir Raideo por primera vez, traemos la lista del servidor.
+        if (target === 'raid' && !raidState.loaded) loadRaid();
       });
     });
   }
@@ -466,7 +854,10 @@
     var search = document.getElementById('cctv-search');
     if (search) search.addEventListener('input', function () { renderCCTV(search.value); });
     setupGenetics();
+    setupRaid();
     setupSubtabs();
+    // Si hay sesión iniciada, precargamos la lista de raideo en segundo plano.
+    if (typeof api === 'function') loadRaid();
   }
 
   if (document.readyState === 'loading') {

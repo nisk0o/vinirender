@@ -809,6 +809,123 @@ button.fault-chip:hover { border-color: #ff4d4d; background: rgba(255,77,77,0.15
 .gene-outcome-quality { font-family: var(--font-mono); font-size: 0.68rem; color: var(--color-text-faint); white-space: nowrap; }
 .gene-error { color: var(--color-danger); font-size: 0.88rem; padding: 0.4rem 0; }
 @media (max-width: 520px) { .gene-cell { width: 1.6rem; height: 1.6rem; font-size: 0.85rem; } }
+
+/* ============================================================
+   RAIDEO 2.0 — rediseño profesional con imágenes de items
+   ============================================================ */
+.raid2-note {
+  display: flex; align-items: flex-start; gap: 0.7rem; flex-wrap: wrap;
+  background: linear-gradient(180deg, rgba(255,77,77,0.08), rgba(255,77,77,0.03));
+  border: 1px solid rgba(255,77,77,0.28); border-left: 3px solid var(--color-danger);
+  border-radius: var(--radius-md); padding: 0.8rem 1rem; font-size: 0.82rem;
+  color: var(--color-text-dim); line-height: 1.5; margin-bottom: 1.4rem;
+}
+.raid2-note-tag {
+  font-family: var(--font-mono); font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.08em;
+  background: rgba(255,77,77,0.16); color: #ff8f8f; border: 1px solid rgba(255,77,77,0.35);
+  padding: 0.2rem 0.5rem; border-radius: 4px; white-space: nowrap; flex-shrink: 0;
+}
+.raid2-note strong { color: var(--color-text); }
+
+/* ---- Item image (foto real con fallback) ---- */
+.item-img {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: radial-gradient(circle at 50% 35%, rgba(255,255,255,0.08), rgba(0,0,0,0.25));
+  border-radius: 6px; overflow: hidden; flex-shrink: 0;
+}
+.item-img img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.item-img.fallback { font-family: var(--font-display); color: var(--color-text-dim); font-size: 0.9em; letter-spacing: 0.02em; }
+.item-img svg { width: 82%; height: 82%; display: block; }
+
+/* ---- Constructor ---- */
+.raid2-builder {
+  background: linear-gradient(180deg, var(--color-bg-raised), #141315);
+  border: 1px solid var(--color-metal); border-radius: var(--radius-md);
+  padding: 1.2rem 1.3rem 1.3rem; margin-bottom: 1.4rem;
+}
+.raid2-builder-head { display: flex; align-items: center; gap: 0.6rem; font-family: var(--font-display); letter-spacing: 0.04em; font-size: 1.15rem; color: var(--color-text); margin-bottom: 0.9rem; }
+.raid2-builder-step {
+  width: 1.55rem; height: 1.55rem; border-radius: 50%; background: var(--color-fucsia); color: #fff;
+  display: inline-flex; align-items: center; justify-content: center; font-family: var(--font-mono);
+  font-size: 0.8rem; font-weight: 600; box-shadow: var(--shadow-fucsia); flex-shrink: 0;
+}
+.raid2-builder-hint { font-family: var(--font-mono); font-size: 0.66rem; color: var(--color-minion-yellow); letter-spacing: 0.04em; text-transform: none; margin-left: 0.3rem; }
+
+.raid2-struct-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 0.6rem; }
+.raid2-explo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(135px, 1fr)); gap: 0.6rem; }
+
+.raid2-tile {
+  position: relative; display: flex; flex-direction: column; align-items: center; gap: 0.45rem;
+  background: var(--color-bg); border: 1px solid var(--color-metal); border-radius: var(--radius-md);
+  padding: 0.75rem 0.5rem 0.65rem; cursor: pointer; transition: all 0.13s ease; text-align: center;
+}
+.raid2-tile:hover { border-color: var(--color-metal-light); transform: translateY(-2px); background: #1d1c1f; }
+.raid2-tile.selected { border-color: var(--color-fucsia); background: rgba(230,0,126,0.08); box-shadow: 0 0 0 1px var(--color-fucsia) inset, var(--shadow-fucsia); }
+.raid2-tile .item-img { width: 48px; height: 48px; }
+.raid2-tile-name { font-size: 0.76rem; color: var(--color-text-dim); line-height: 1.25; font-weight: 500; }
+.raid2-tile.selected .raid2-tile-name { color: var(--color-text); }
+.raid2-tile-sub { font-family: var(--font-mono); font-size: 0.62rem; color: var(--color-text-faint); }
+.raid2-tile-hp { position: absolute; top: 0.35rem; right: 0.4rem; font-family: var(--font-mono); font-size: 0.56rem; color: var(--color-text-faint); }
+.raid2-tile-badge {
+  font-family: var(--font-mono); font-size: 0.62rem; padding: 0.12rem 0.4rem; border-radius: 3px;
+  background: rgba(255,212,0,0.14); color: var(--color-minion-yellow); border: 1px solid rgba(255,212,0,0.3);
+}
+.raid2-tile-badge.is-cheapest { background: rgba(76,214,126,0.15); color: #6fce6f; border-color: rgba(76,214,126,0.35); }
+.raid2-tile.disabled { opacity: 0.4; cursor: not-allowed; }
+.raid2-tile.disabled:hover { transform: none; border-color: var(--color-metal); background: var(--color-bg); }
+
+.raid2-builder-foot { display: flex; align-items: center; gap: 0.9rem; margin-top: 1.3rem; flex-wrap: wrap; }
+.raid2-qty { display: inline-flex; align-items: center; border: 1px solid var(--color-metal-light); border-radius: var(--radius-md); overflow: hidden; background: var(--color-bg); }
+.raid2-qty-btn { width: 2.4rem; height: 2.6rem; background: transparent; border: none; color: var(--color-text-dim); font-size: 1.3rem; cursor: pointer; transition: background 0.12s ease; }
+.raid2-qty-btn:hover { background: rgba(255,255,255,0.06); color: #fff; }
+.raid2-qty input { width: 3.2rem; height: 2.6rem; text-align: center; background: transparent; border: none; border-left: 1px solid var(--color-metal); border-right: 1px solid var(--color-metal); color: var(--color-text); font-family: var(--font-mono); font-size: 1rem; -moz-appearance: textfield; }
+.raid2-qty input::-webkit-outer-spin-button, .raid2-qty input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.raid2-add-btn { flex: 1; min-width: 180px; height: 2.6rem; }
+
+/* ---- Lista de raideo ---- */
+.raid2-list-wrap { margin-bottom: 1.4rem; }
+.raid2-list-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.8rem; }
+.raid2-section-title { font-family: var(--font-display); letter-spacing: 0.04em; font-size: 1.3rem; color: var(--color-text); }
+.raid2-clear-btn { background: none; border: 1px solid var(--color-metal-light); color: var(--color-text-faint); padding: 0.4rem 0.85rem; border-radius: var(--radius-sm); cursor: pointer; font-family: var(--font-body); font-size: 0.8rem; }
+.raid2-clear-btn:hover { color: var(--color-danger); border-color: var(--color-danger); }
+.raid2-empty { color: var(--color-text-faint); font-size: 0.9rem; padding: 1.6rem 1rem; text-align: center; background: var(--color-bg-raised); border: 1px dashed var(--color-metal-light); border-radius: var(--radius-md); }
+
+.raid2-row {
+  display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 0.9rem;
+  background: var(--color-bg-raised); border: 1px solid var(--color-metal); border-radius: var(--radius-md);
+  padding: 0.8rem 1rem; margin-bottom: 0.65rem;
+}
+.raid2-row-target { display: flex; align-items: center; gap: 0.7rem; }
+.raid2-row-target .item-img { width: 40px; height: 40px; }
+.raid2-row-qty { font-family: var(--font-display); font-size: 1.35rem; color: var(--color-minion-yellow); line-height: 1; min-width: 2.2rem; text-align: center; }
+.raid2-row-name { font-size: 0.92rem; color: var(--color-text); font-weight: 500; }
+.raid2-row-name .raid2-approx { font-family: var(--font-mono); font-size: 0.58rem; color: #ff8f8f; border: 1px solid rgba(255,77,77,0.35); padding: 0.05rem 0.3rem; border-radius: 3px; margin-left: 0.4rem; vertical-align: middle; }
+.raid2-row-arrow { color: var(--color-text-faint); font-size: 1rem; }
+.raid2-row-method { display: flex; align-items: center; gap: 0.6rem; justify-self: start; }
+.raid2-row-method .item-img { width: 34px; height: 34px; }
+.raid2-row-method-count { font-family: var(--font-display); font-size: 1.5rem; color: var(--color-fucsia-glow); line-height: 1; }
+.raid2-row-method-name { font-size: 0.78rem; color: var(--color-text-dim); }
+.raid2-row-remove { background: none; border: none; color: var(--color-text-faint); cursor: pointer; font-size: 1.1rem; padding: 0.3rem 0.5rem; border-radius: 4px; }
+.raid2-row-remove:hover { color: var(--color-danger); background: rgba(255,77,77,0.1); }
+@media (max-width: 560px) {
+  .raid2-row { grid-template-columns: 1fr auto; gap: 0.6rem; }
+  .raid2-row-method { grid-column: 1 / -1; border-top: 1px solid var(--color-metal); padding-top: 0.55rem; }
+}
+
+/* ---- Totales ---- */
+.raid2-totals { background: linear-gradient(180deg, var(--color-bg-raised), #141315); border: 1px solid var(--color-metal); border-radius: var(--radius-md); padding: 1.2rem 1.3rem; }
+.raid2-totals-title { font-family: var(--font-display); letter-spacing: 0.04em; font-size: 1.3rem; color: var(--color-text); margin-bottom: 1rem; }
+.raid2-summary { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-bottom: 1.2rem; }
+.raid2-summary-chip { display: flex; align-items: center; gap: 0.5rem; background: var(--color-bg); border: 1px solid var(--color-metal); border-radius: var(--radius-md); padding: 0.5rem 0.8rem; }
+.raid2-summary-chip .item-img { width: 30px; height: 30px; }
+.raid2-summary-num { font-family: var(--font-display); font-size: 1.4rem; color: var(--color-text); line-height: 1; }
+.raid2-summary-label { font-family: var(--font-mono); font-size: 0.62rem; color: var(--color-text-faint); text-transform: uppercase; letter-spacing: 0.05em; }
+.raid2-res-label { font-family: var(--font-mono); font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.07em; color: var(--color-text-faint); margin-bottom: 0.7rem; }
+.raid2-res-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 0.6rem; }
+.raid2-res-chip { display: flex; align-items: center; gap: 0.6rem; background: var(--color-bg); border: 1px solid var(--color-metal); border-radius: var(--radius-md); padding: 0.6rem 0.75rem; }
+.raid2-res-chip .item-img { width: 38px; height: 38px; }
+.raid2-res-amount { font-family: var(--font-display); font-size: 1.35rem; color: var(--color-text); line-height: 1; }
+.raid2-res-name { font-size: 0.72rem; color: var(--color-text-dim); }
 </style>
 </head>
 <body>
@@ -868,7 +985,6 @@ button.fault-chip:hover { border-color: #ff4d4d; background: rgba(255,77,77,0.15
     <button class="nav-tab" data-view="bases"><span class="tab-icon">🏰</span> Bases</button>
     <button class="nav-tab" data-view="stats"><span class="tab-icon">📊</span> Estadísticas</button>
     <button class="nav-tab" data-view="enemigos"><span class="tab-icon">🎯</span> Enemigos</button>
-    <button class="nav-tab" data-view="raidcalc"><span class="tab-icon">🧨</span> Raideo</button>
     <button class="nav-tab" data-view="intel"><span class="tab-icon">🛰️</span> Intel</button>
     <button class="nav-tab" data-view="roles"><span class="tab-icon">🎡</span> Roles</button>
     <button class="nav-tab" data-view="taquilla"><span class="tab-icon">🔐</span> Taquilla</button>
@@ -1074,48 +1190,6 @@ button.fault-chip:hover { border-color: #ff4d4d; background: rgba(255,77,77,0.15
       <div class="enemy-list" id="enemy-list"></div>
     </div>
 
-    <!-- VISTA: CALCULADORA DE RAIDEO -->
-    <div class="view" id="view-raidcalc">
-      <div class="taquilla-head">
-        <p class="welcome-eyebrow">🧨 Planifica tu asalto</p>
-        <h1 class="welcome-title">Calculadora de <span>Raideo</span></h1>
-        <p class="welcome-text">Añade lo que tengas que reventar y elige con qué. Te decimos cuántos explosivos necesitas y cuánto cuesta fabricarlos.</p>
-      </div>
-
-      <div class="raid-note">
-        ⚠️ Valores orientativos de la versión vanilla de Rust, calculados a mano cruzando varias fuentes de la comunidad. Los del nivel <strong>Blindado</strong> son menos fiables (las fuentes no coinciden entre sí). Antes de un raid importante, contrástalos en rustlabs.com.
-      </div>
-
-      <div class="raid-add-form">
-        <div class="raid-add-row">
-          <div class="field">
-            <label for="raid-structure-select">Objetivo</label>
-            <select id="raid-structure-select"></select>
-          </div>
-          <div class="field raid-qty-field">
-            <label for="raid-qty-input">Cantidad</label>
-            <input type="number" id="raid-qty-input" min="1" value="1" />
-          </div>
-          <div class="field">
-            <label for="raid-explosive-select">Explosivo</label>
-            <select id="raid-explosive-select"></select>
-          </div>
-          <button class="btn" id="raid-add-btn" type="button">+ Añadir</button>
-        </div>
-        <div class="raid-compare" id="raid-compare"></div>
-      </div>
-
-      <div class="raid-list-wrap">
-        <div class="raid-list-head">
-          <span class="stats-panel-title">Tu lista de raideo</span>
-          <button class="raid-clear-btn" id="raid-clear-btn" type="button">Vaciar lista</button>
-        </div>
-        <div id="raid-list"></div>
-      </div>
-
-      <div class="raid-totals" id="raid-totals"></div>
-    </div>
-
     <!-- VISTA: IN-GAME INTEL -->
     <div class="view" id="view-intel">
       <div class="taquilla-head">
@@ -1127,6 +1201,7 @@ button.fault-chip:hover { border-color: #ff4d4d; background: rgba(255,77,77,0.15
       <div class="intel-tabs" id="intel-subtabs">
         <button class="intel-subtab active" data-intel="cctv" type="button">📹 Cámaras CCTV</button>
         <button class="intel-subtab" data-intel="genetics" type="button">🧬 Genéticas</button>
+        <button class="intel-subtab" data-intel="raid" type="button">🧨 Raideo</button>
       </div>
 
       <!-- SUBSECCIÓN: CÁMARAS CCTV -->
@@ -1173,6 +1248,50 @@ button.fault-chip:hover { border-color: #ff4d4d; background: rgba(255,77,77,0.15
         </div>
 
         <div class="gene-results" id="gene-results"></div>
+      </div>
+
+      <!-- SUBSECCIÓN: RAIDEO -->
+      <div class="intel-section" id="intel-raid">
+        <div class="raid2-note">
+          <span class="raid2-note-tag">Datos vanilla</span>
+          Valores orientativos de Rust vanilla cruzando varias fuentes de la comunidad. Los del nivel <strong>Blindado</strong> son menos fiables. Antes de un raid serio, contrasta en rustlabs.com.
+        </div>
+
+        <!-- Constructor de la lista -->
+        <div class="raid2-builder">
+          <div class="raid2-builder-head">
+            <span class="raid2-builder-step">1</span>
+            <span>Elige el objetivo</span>
+          </div>
+          <div class="raid2-struct-grid" id="raid2-struct-grid"></div>
+
+          <div class="raid2-builder-head" style="margin-top:1.4rem;">
+            <span class="raid2-builder-step">2</span>
+            <span>Elige el explosivo <span class="raid2-builder-hint" id="raid2-cheapest-hint"></span></span>
+          </div>
+          <div class="raid2-explo-grid" id="raid2-explo-grid"></div>
+
+          <div class="raid2-builder-foot">
+            <div class="raid2-qty">
+              <button class="raid2-qty-btn" id="raid2-qty-minus" type="button" aria-label="Menos">−</button>
+              <input type="number" id="raid2-qty-input" min="1" value="1" />
+              <button class="raid2-qty-btn" id="raid2-qty-plus" type="button" aria-label="Más">+</button>
+            </div>
+            <button class="btn raid2-add-btn" id="raid2-add-btn" type="button">Añadir a la lista</button>
+          </div>
+        </div>
+
+        <!-- Lista de raideo -->
+        <div class="raid2-list-wrap">
+          <div class="raid2-list-head">
+            <span class="raid2-section-title">Tu plan de raideo</span>
+            <button class="raid2-clear-btn" id="raid2-clear-btn" type="button">Vaciar</button>
+          </div>
+          <div id="raid2-list"></div>
+        </div>
+
+        <!-- Totales -->
+        <div class="raid2-totals" id="raid2-totals"></div>
       </div>
     </div>
 
