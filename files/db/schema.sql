@@ -116,6 +116,87 @@ create table if not exists enemy_teams (
 create unique index if not exists enemy_teams_server_name_idx
   on enemy_teams (server_id, lower(name));
 
+-- ============================================================
+-- BASES — repositorio de diseños de base
+-- ============================================================
+-- Cada base guarda su vídeo de YouTube, etiquetas (tamaño de
+-- equipo, bunker) y coste de construcción en piedra y metal.
+create table if not exists bases (
+  id          bigint generated always as identity primary key,
+  name        text not null,
+  youtube_url text default '',
+  team_size   text not null default '' check (team_size in ('', 'trio', 'zerg')),
+  bunker      boolean not null default false,
+  cost_stone  int,
+  cost_metal  int,
+  notes       text default '',
+  created_by  text,
+  ts          bigint not null
+);
+
+-- Votación en bananas 🍌: cada miembro puntúa cada base de 1 a 5.
+-- Un voto por persona y base (si vuelve a votar, se actualiza).
+create table if not exists base_votes (
+  id       bigint generated always as identity primary key,
+  base_id  bigint not null references bases(id) on delete cascade,
+  username text not null references users(username) on delete cascade,
+  bananas  int not null check (bananas between 1 and 5),
+  ts       bigint not null
+);
+
+create unique index if not exists base_votes_base_user_idx
+  on base_votes (base_id, username);
+
+-- Hoja de servicio: cada vez que se usa una base en un wipe se
+-- apunta cuánto aguantó y cómo acabó. Los finales que no son
+-- "sobrevivio" alimentan el Cementerio de Bases. 💀
+create table if not exists base_usages (
+  id            bigint generated always as identity primary key,
+  base_id       bigint not null references bases(id) on delete cascade,
+  wipe_label    text not null,
+  server_id     text default '',
+  days_survived int,
+  outcome       text not null check (outcome in ('sobrevivio', 'raid_offline', 'raid_online', 'decay', 'abandonada')),
+  notes         text default '',
+  created_by    text,
+  ts            bigint not null
+);
+
+create index if not exists base_usages_base_idx on base_usages (base_id);
+
+-- Draft del wipe: se proponen varias bases del repositorio y la
+-- Zerg vota cuál se construye. Solo puede haber un draft abierto
+-- a la vez; al cerrarlo queda registrada la ganadora.
+create table if not exists base_drafts (
+  id             bigint generated always as identity primary key,
+  wipe_label     text not null,
+  status         text not null default 'abierto' check (status in ('abierto', 'cerrado')),
+  winner_base_id bigint,
+  created_by     text,
+  ts             bigint not null
+);
+
+create table if not exists base_draft_candidates (
+  id       bigint generated always as identity primary key,
+  draft_id bigint not null references base_drafts(id) on delete cascade,
+  base_id  bigint not null references bases(id) on delete cascade
+);
+
+create unique index if not exists base_draft_candidates_idx
+  on base_draft_candidates (draft_id, base_id);
+
+-- Un voto por persona y draft (si vuelve a votar, se actualiza).
+create table if not exists base_draft_votes (
+  id       bigint generated always as identity primary key,
+  draft_id bigint not null references base_drafts(id) on delete cascade,
+  base_id  bigint not null,
+  username text not null references users(username) on delete cascade,
+  ts       bigint not null
+);
+
+create unique index if not exists base_draft_votes_idx
+  on base_draft_votes (draft_id, username);
+
 -- Row Level Security: la app solo habla con Supabase desde el
 -- backend Node usando la service_role key, que se salta RLS por
 -- diseño. Aun así dejamos RLS activada y sin políticas públicas,
@@ -130,3 +211,9 @@ alter table raid_list    enable row level security;
 alter table enemies      enable row level security;
 alter table server_settings enable row level security;
 alter table enemy_teams  enable row level security;
+alter table bases        enable row level security;
+alter table base_votes   enable row level security;
+alter table base_usages  enable row level security;
+alter table base_drafts  enable row level security;
+alter table base_draft_candidates enable row level security;
+alter table base_draft_votes      enable row level security;
