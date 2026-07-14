@@ -165,7 +165,7 @@ function publicUser(u) {
 function rowToNote(row) { return { id: row.id, username: row.username, text: row.text, ts: Number(row.ts) }; }
 function rowToImage(row) { return { id: row.id, username: row.username, dataUrl: row.data_url, ts: Number(row.ts) }; }
 function rowToRaid(row) { return { id: row.id, structureId: row.structure_id, explosiveKey: row.explosive_key, qty: row.qty }; }
-function rowToEnemy(row) { return { id: row.id, serverId: row.server_id, name: row.name, steamId: row.steam_id || '', team: row.team || '', lastSeen: row.last_seen ? Number(row.last_seen) : null, bmPlayerId: row.bm_player_id || '', ts: Number(row.ts) }; }
+function rowToEnemy(row) { return { id: row.id, serverId: row.server_id, name: row.name, steamId: row.steam_id || '', team: row.team || '', lastSeen: row.last_seen ? Number(row.last_seen) : null, ts: Number(row.ts) }; }
 function rowToEnemyTeam(row) {
   return {
     id: row.id, serverId: row.server_id, name: row.name,
@@ -246,10 +246,9 @@ async function fetchBmServer(bmServerId) {
 
   const json = await res.json();
   const attrs = (json.data && json.data.attributes) || {};
-  const players = (json.included || [])
+  const online = (json.included || [])
     .filter(item => item.type === 'player' && item.attributes && item.attributes.name)
-    .map(item => ({ id: item.id, name: item.attributes.name }));
-  const online = players.map(p => p.name);
+    .map(item => item.attributes.name);
 
   const data = {
     bmServerId,
@@ -257,189 +256,11 @@ async function fetchBmServer(bmServerId) {
     status: attrs.status || 'unknown',
     playersOnline: typeof attrs.players === 'number' ? attrs.players : online.length,
     maxPlayers: attrs.maxPlayers || null,
-    online,          // solo nombres (compatibilidad con el resto del código)
-    players,         // [{ id, name }] para poder guardar el bm_player_id
+    online,
     fetchedAt: Date.now()
   };
   bmCache[bmServerId] = { ts: Date.now(), data };
   return data;
-}
-
-// ------------------------------------------------------------
-// Perfil de jugador + historial de actividad.
-//
-// A diferencia del estado online (que se refresca solo cada 60 s),
-// esto se pide SOLO cuando alguien pulsa "Ver actividad" en la ficha
-// de un enemigo. Por eso cacheamos más tiempo (1 hora): la actividad
-// pasada casi no cambia y así no gastamos peticiones si varios miran
-// al mismo enemigo. El endpoint de sesiones necesita el token gratis
-// de battlemetrics.com/developers para funcionar bien.
-// ------------------------------------------------------------
-const BM_PROFILE_CACHE_MS = 60 * 60 * 1000; // 1 hora
-const bmProfileCache = {}; // bmPlayerId -> { ts, data }
-const ACTIVITY_DAYS = 21;   // ventana que analizamos para el histograma
-
-function bmHeaders() {
-  const headers = { Accept: 'application/json' };
-  if (process.env.BATTLEMETRICS_TOKEN) {
-    headers.Authorization = `Bearer ${process.env.BATTLEMETRICS_TOKEN}`;
-  }
-  return headers;
-}
-
-async function bmGet(url) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 12000);
-  let res;
-  try {
-    res = await fetch(url, { headers: bmHeaders(), signal: controller.signal });
-  } catch (e) {
-    throw new Error('No se pudo contactar con BattleMetrics (¿caído o sin red?). Reintenta en un momento.');
-  } finally {
-    clearTimeout(timeout);
-  }
-  if (!res.ok) {
-    if (res.status === 401) throw new Error('BattleMetrics ha rechazado el token. Para ver la actividad hace falta un token válido (BATTLEMETRICS_TOKEN).');
-    if (res.status === 404) throw new Error('BattleMetrics no encuentra a ese jugador.');
-    if (res.status === 429) throw new Error('BattleMetrics nos ha frenado por exceso de peticiones. Espera un minuto.');
-    throw new Error(`BattleMetrics respondió con error ${res.status}.`);
-  }
-  return res.json();
-}
-
-// Busca el ID de jugador en BattleMetrics a partir del nombre exacto.
-// Devuelve '' si no hay una coincidencia clara.
-async function bmFindPlayerIdByName(name) {
-  const clean = String(name || '').trim();
-  if (!clean) return '';
-  const url = `https://api.battlemetrics.com/players?filter[search]=${encodeURIComponent(clean)}&page[size]=20`;
-  const json = await bmGet(url);
-  const matches = (json.data || []).filter(p =>
-    p.attributes && String(p.attributes.name || '').trim().toLowerCase() === clean.toLowerCase()
-  );
-  // Solo aceptamos si hay UNA coincidencia exacta: si hay varias con el
-  // mismo nombre no podemos saber cuál es sin verlo online, y preferimos
-  // no adivinar.
-  if (matches.length === 1) return matches[0].id;
-  return '';
-}
-
-// Horas totales (todos los servidores) desde el perfil del jugador.
-async function bmPlayerTotals(bmPlayerId) {
-  const json = await bmGet(`https://api.battlemetrics.com/players/${encodeURIComponent(bmPlayerId)}`);
-  const a = (json.data && json.data.attributes) || {};
-  return {
-    name: a.name || '',
-    // timePlayed viene en segundos y es el total en la red de BM.
-    totalSeconds: typeof a.timePlayed === 'number' ? a.timePlayed : null,
-    firstSeen: a.firstSeen || null,
-    lastSeen: a.lastSeen || null
-  };
-}
-
-// Descarga las sesiones de los últimos ACTIVITY_DAYS días (paginando)
-// y las trocea por hora del día y día de la semana, en HORA DE ESPAÑA.
-async function bmPlayerActivity(bmPlayerId) {
-  const now = Date.now();
-  const start = new Date(now - ACTIVITY_DAYS * 24 * 60 * 60 * 1000).toISOString();
-  const stop = new Date(now).toISOString();
-
-  // Histogramas: 24 franjas horarias y 7 días de la semana (0 = domingo,
-  // como Date.getDay() en la zona horaria de Madrid).
-  const hours = new Array(24).fill(0);      // minutos jugados por hora del día
-  const weekdays = new Array(7).fill(0);    // minutos jugados por día de semana
-  let sessionsCount = 0;
-  let totalMinutes = 0;
-
-  let next = `https://api.battlemetrics.com/sessions?filter[players]=${encodeURIComponent(bmPlayerId)}` +
-             `&filter[range]=${encodeURIComponent(start)}:${encodeURIComponent(stop)}` +
-             `&page[size]=100`;
-
-  let guard = 0; // tope de páginas por si acaso (100 sesiones/pág × 15 = 1500)
-  while (next && guard < 15) {
-    guard++;
-    const json = await bmGet(next);
-    const sessions = json.data || [];
-    for (const s of sessions) {
-      const a = s.attributes || {};
-      if (!a.start) continue;
-      const startMs = Date.parse(a.start);
-      const stopMs = a.stop ? Date.parse(a.stop) : now; // sesión aún abierta
-      if (isNaN(startMs) || stopMs <= startMs) continue;
-      sessionsCount++;
-      spreadSessionIntoBuckets(startMs, stopMs, hours, weekdays);
-      totalMinutes += (stopMs - startMs) / 60000;
-    }
-    next = (json.links && json.links.next) || null;
-  }
-
-  return {
-    days: ACTIVITY_DAYS,
-    sessionsCount,
-    activeHours: Math.round(totalMinutes / 60 * 10) / 10,
-    hours,      // minutos por hora del día [0..23], hora de Madrid
-    weekdays,   // minutos por día de semana [dom..sáb], hora de Madrid
-    typicalWindow: computeTypicalWindow(hours)
-  };
-}
-
-// Reparte una sesión (que puede cruzar varias horas o incluso días)
-// en las franjas horarias correctas, minuto a minuto pero de forma
-// barata: avanzamos hora a hora usando la hora local de Madrid.
-function spreadSessionIntoBuckets(startMs, stopMs, hours, weekdays) {
-  let cursor = startMs;
-  while (cursor < stopMs) {
-    const { hour, weekday } = madridParts(cursor);
-    // Fin de esta hora local
-    const nextHour = cursor - (cursor % (60 * 60 * 1000)) + 60 * 60 * 1000;
-    const segEnd = Math.min(stopMs, nextHour);
-    const mins = (segEnd - cursor) / 60000;
-    hours[hour] += mins;
-    weekdays[weekday] += mins;
-    cursor = segEnd;
-  }
-}
-
-// Devuelve la hora (0-23) y el día de la semana (0=domingo) de un
-// instante, en la zona horaria de Madrid (respeta verano/invierno).
-const MADRID_FMT = new Intl.DateTimeFormat('en-GB', {
-  timeZone: 'Europe/Madrid', hour: 'numeric', weekday: 'short', hour12: false
-});
-const WEEKDAY_INDEX = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
-function madridParts(ms) {
-  const parts = MADRID_FMT.formatToParts(new Date(ms));
-  let hour = 0, weekday = 0;
-  for (const p of parts) {
-    if (p.type === 'hour') hour = parseInt(p.value, 10) % 24;
-    else if (p.type === 'weekday') weekday = WEEKDAY_INDEX[p.value] || 0;
-  }
-  return { hour, weekday };
-}
-
-// A partir del histograma de horas, calcula la franja contigua (con
-// vuelta a medianoche) que concentra más actividad, para el resumen
-// tipo "suele estar activo de 18:00 a 02:00".
-function computeTypicalWindow(hours) {
-  const total = hours.reduce((a, b) => a + b, 0);
-  if (total <= 0) return null;
-  const peak = Math.max(...hours);
-  if (peak <= 0) return null;
-  // Consideramos "activo" cualquier hora con al menos el 25% del pico.
-  const threshold = peak * 0.25;
-  const active = hours.map(v => v >= threshold);
-  // Buscamos la racha de horas activas más larga tratando el array
-  // como circular (para cazar sesiones que cruzan la medianoche).
-  let bestStart = -1, bestLen = 0;
-  for (let s = 0; s < 24; s++) {
-    if (!active[s]) continue;
-    let len = 0;
-    while (len < 24 && active[(s + len) % 24]) len++;
-    if (len > bestLen) { bestLen = len; bestStart = s; }
-  }
-  if (bestStart === -1) return null;
-  const startH = bestStart;
-  const endH = (bestStart + bestLen) % 24;
-  return { start: startH, end: endH };
 }
 
 function rowToPoint(row) {
@@ -1065,33 +886,17 @@ async function handleApi(req, res, pathname) {
 
     // Comparamos nombres ignorando mayúsculas/minúsculas y espacios
     // sobrantes: es lo único que BattleMetrics expone públicamente.
-    // De paso, como aquí tenemos el ID de jugador de cada uno que está
-    // online, aprovechamos para guardarlo (bm_player_id) si aún no lo
-    // teníamos: así "Ver actividad" luego es instantáneo y sobrevive a
-    // cambios de nombre.
-    const nameToPlayerId = {};
-    (bm.players || []).forEach(p => { nameToPlayerId[p.name.trim().toLowerCase()] = p.id; });
-    const onlineSet = new Set(Object.keys(nameToPlayerId));
-
+    const onlineSet = new Set(bm.online.map(n => n.trim().toLowerCase()));
     const erows = await db.select('enemies', `select=*&server_id=eq.${encodeURIComponent(serverId)}`);
     const enemies = (erows || []).map(rowToEnemy);
-    const onlineEnemies = enemies.filter(en => onlineSet.has(en.name.trim().toLowerCase()));
-    const onlineIds = onlineEnemies.map(en => en.id);
+    const onlineIds = enemies
+      .filter(en => onlineSet.has(en.name.trim().toLowerCase()))
+      .map(en => en.id);
 
     // Apuntamos la "última vez visto" de los que están online ahora,
     // en una sola petición a Supabase.
     if (onlineIds.length) {
       await db.update('enemies', `id=in.(${onlineIds.join(',')})`, { last_seen: Date.now() });
-    }
-
-    // Guardamos el bm_player_id de los que aún no lo tenían (uno a uno,
-    // pero solo la primera vez que los pillamos online).
-    for (const en of onlineEnemies) {
-      if (en.bmPlayerId) continue;
-      const pid = nameToPlayerId[en.name.trim().toLowerCase()];
-      if (pid) {
-        try { await db.update('enemies', `id=eq.${en.id}`, { bm_player_id: pid }); } catch (e) { /* no crítico */ }
-      }
     }
 
     return sendJSON(res, 200, {
@@ -1104,61 +909,6 @@ async function handleApi(req, res, pathname) {
       onlineIds,
       fetchedAt: bm.fetchedAt
     });
-  }
-
-  // ---- ACTIVIDAD DE UN ENEMIGO (bajo demanda, botón "Ver actividad") ----
-  // Devuelve horas totales + histograma de franjas horarias y días de
-  // la semana. NO se llama en el auto-refresco: solo cuando el usuario
-  // lo pide expresamente. Cacheado 1 hora por jugador.
-  if ((m = pathname.match(/^\/api\/enemies\/(\d+)\/activity$/)) && method === 'GET') {
-    if (!requireAuth()) return;
-    const id = Number(m[1]);
-    const erows = await db.select('enemies', `select=*&id=eq.${id}`);
-    if (!erows || !erows[0]) return sendJSON(res, 404, { error: 'Enemigo no encontrado.' });
-    const enemy = rowToEnemy(erows[0]);
-
-    // 1) Resolvemos su bm_player_id: si ya lo tenemos, genial; si no,
-    //    lo buscamos por nombre exacto y lo guardamos para la próxima.
-    let pid = enemy.bmPlayerId;
-    if (!pid) {
-      try { pid = await bmFindPlayerIdByName(enemy.name); }
-      catch (err) { return sendJSON(res, 502, { error: err.message }); }
-      if (!pid) {
-        return sendJSON(res, 200, {
-          resolved: false,
-          reason: 'No hemos podido identificar a este jugador en BattleMetrics por su nombre (puede que use un nombre muy común o distinto al del juego). Se enlazará solo la próxima vez que lo pillemos conectado.'
-        });
-      }
-      try { await db.update('enemies', `id=eq.${id}`, { bm_player_id: pid }); } catch (e) { /* no crítico */ }
-    }
-
-    // 2) Caché de 1 hora
-    const cached = bmProfileCache[pid];
-    if (cached && Date.now() - cached.ts < BM_PROFILE_CACHE_MS) {
-      return sendJSON(res, 200, cached.data);
-    }
-
-    // 3) Perfil (horas totales) + actividad (histograma)
-    let totals, activity;
-    try {
-      totals = await bmPlayerTotals(pid);
-      activity = await bmPlayerActivity(pid);
-    } catch (err) {
-      return sendJSON(res, 502, { error: err.message });
-    }
-
-    const payload = {
-      resolved: true,
-      bmPlayerId: pid,
-      name: totals.name || enemy.name,
-      totalSeconds: totals.totalSeconds,
-      firstSeen: totals.firstSeen,
-      lastSeen: totals.lastSeen,
-      activity,
-      fetchedAt: Date.now()
-    };
-    bmProfileCache[pid] = { ts: Date.now(), data: payload };
-    return sendJSON(res, 200, payload);
   }
 
   // ---- EQUIPOS ENEMIGOS (por servidor, con tamaño y cuadrante) ----
