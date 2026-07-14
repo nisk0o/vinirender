@@ -90,6 +90,14 @@ create table if not exists enemies (
 -- esta línea añade la columna sin tocar ningún dato.
 alter table enemies add column if not exists last_seen bigint;
 
+-- ID del jugador en BattleMetrics (distinto del ID del servidor).
+-- Es la llave para pedir su historial de sesiones y horas totales.
+-- Se rellena solo la primera vez que se pulsa "Ver actividad" (o
+-- cuando le vemos online), así el tracking sobrevive a cambios de
+-- nombre. Si tu tabla "enemies" ya existía, esta línea la añade sin
+-- tocar ningún dato.
+alter table enemies add column if not exists bm_player_id text;
+
 -- Vínculo de cada servidor de la app con su servidor en
 -- BattleMetrics (el número que sale en la URL, p. ej.
 -- battlemetrics.com/servers/rust/1234567 → "1234567").
