@@ -346,25 +346,6 @@ button.fault-chip:hover { border-color: #ff4d4d; background: rgba(255,77,77,0.15
 .enemy-card-team-select:focus { outline: none; border-color: var(--color-fucsia); }
 .enemy-card-delete { flex: 0 0 auto; width: 30px; height: 30px; border-radius: 50%; background: transparent; border: 1.5px solid var(--color-metal-light); color: var(--color-text-dim); font-size: 0.8rem; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s ease; }
 .enemy-card-delete:hover { border-color: var(--color-danger); color: var(--color-danger); }
-.enemy-card-activity { flex: 0 0 auto; width: 30px; height: 30px; border-radius: 50%; background: transparent; border: 1.5px solid var(--color-metal-light); color: var(--color-text-dim); font-size: 0.82rem; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s ease; }
-.enemy-card-activity:hover { border-color: var(--color-fucsia); color: var(--color-fucsia); }
-
-/* Modal de actividad del enemigo */
-.enemy-activity-modal { max-width: 560px; }
-.enemy-activity-loading, .enemy-activity-error { font-family: var(--font-mono); font-size: 0.78rem; color: var(--color-text-dim); line-height: 1.5; padding: 0.9rem 0; }
-.enemy-activity-error { color: var(--color-text-faint); }
-.enemy-activity-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.6rem; margin-bottom: 1.1rem; }
-.enemy-activity-stat { background: var(--color-bg); border: 1px solid rgba(255,255,255,0.07); border-radius: var(--radius-sm); padding: 0.55rem 0.7rem; }
-.enemy-activity-stat-label { font-family: var(--font-mono); font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--color-text-faint); margin-bottom: 0.2rem; }
-.enemy-activity-stat-value { font-family: var(--font-display); font-size: 0.95rem; color: var(--color-text); letter-spacing: 0.02em; }
-.enemy-activity-chart-title { font-family: var(--font-mono); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--color-text-dim); margin: 0.9rem 0 0.5rem; }
-.enemy-activity-chart { display: flex; align-items: flex-end; gap: 2px; height: 110px; padding-top: 4px; }
-.enemy-activity-bar-col { flex: 1 1 0; display: flex; flex-direction: column; align-items: center; gap: 0.25rem; min-width: 0; }
-.enemy-activity-bar-wrap { width: 100%; height: 88px; display: flex; align-items: flex-end; }
-.enemy-activity-bar { width: 100%; background: var(--color-metal-light); border-radius: 2px 2px 0 0; min-height: 0; transition: height 0.2s ease; }
-.enemy-activity-bar.peak { background: var(--color-fucsia); box-shadow: 0 0 6px rgba(230,0,126,0.5); }
-.enemy-activity-bar-label { font-family: var(--font-mono); font-size: 0.52rem; color: var(--color-text-faint); }
-.enemy-activity-foot { font-family: var(--font-mono); font-size: 0.62rem; color: var(--color-text-faint); margin-top: 0.9rem; line-height: 1.4; }
 
 /* ---- Bases: repositorio, bananas, hoja de servicio y draft ---- */
 .base-add-form { margin-bottom: 1.75rem; }
@@ -1421,20 +1402,6 @@ button.fault-chip:hover { border-color: #ff4d4d; background: rgba(255,77,77,0.15
     </div>
     <div class="role-modal-options" id="role-modal-options"></div>
     <button class="role-modal-cancel" id="role-modal-cancel">Cancelar</button>
-  </div>
-</div>
-
-<!-- Modal: actividad de un enemigo (horas y franjas horarias) -->
-<div class="role-modal-overlay" id="enemy-activity-overlay">
-  <div class="role-modal enemy-activity-modal">
-    <div class="role-modal-head">
-      <div>
-        <div class="role-modal-title">📊 Actividad del enemigo</div>
-        <div class="role-modal-name" id="enemy-activity-name">—</div>
-      </div>
-    </div>
-    <div id="enemy-activity-body"></div>
-    <button class="role-modal-cancel" id="enemy-activity-close">Cerrar</button>
   </div>
 </div>
 
