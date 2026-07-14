@@ -903,6 +903,16 @@ function renderEnemiesPanel() {
         renderEnemiesPanel();
       });
 
+      var actBtn = document.createElement('button');
+      actBtn.className = 'enemy-card-activity';
+      actBtn.type = 'button';
+      actBtn.title = 'Ver actividad (horas y franjas en las que suele jugar)';
+      actBtn.setAttribute('aria-label', 'Ver actividad');
+      actBtn.textContent = '📊';
+      actBtn.addEventListener('click', function(){
+        openEnemyActivity(en);
+      });
+
       var delBtn = document.createElement('button');
       delBtn.className = 'enemy-card-delete';
       delBtn.type = 'button';
@@ -919,6 +929,7 @@ function renderEnemiesPanel() {
       });
 
       actions.appendChild(teamSelect);
+      actions.appendChild(actBtn);
       actions.appendChild(delBtn);
 
       card.appendChild(name);
@@ -930,6 +941,159 @@ function renderEnemiesPanel() {
 
     group.appendChild(grid);
     panel.appendChild(group);
+  });
+}
+
+/* ============================================================
+   ACTIVIDAD DE UN ENEMIGO (modal, bajo demanda)
+   Horas totales + franjas horarias y días de la semana en los
+   que suele estar conectado. Se pide SOLO al pulsar el botón 📊,
+   nunca en el auto-refresco.
+   ============================================================ */
+var WEEKDAY_LABELS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+
+function twoDigit(n) { return String(n).padStart(2, '0'); }
+
+function fmtWindow(w) {
+  if (!w) return '—';
+  return twoDigit(w.start) + ':00 – ' + twoDigit(w.end) + ':00';
+}
+
+function fmtTotalHours(seconds) {
+  if (seconds == null) return 'desconocidas';
+  var h = Math.round(seconds / 3600);
+  return h.toLocaleString('es-ES') + ' h';
+}
+
+async function openEnemyActivity(enemy) {
+  var overlay = document.getElementById('enemy-activity-overlay');
+  var nameEl = document.getElementById('enemy-activity-name');
+  var body = document.getElementById('enemy-activity-body');
+  nameEl.textContent = enemy.name;
+  body.innerHTML = '<div class="enemy-activity-loading">Consultando BattleMetrics… (esto puede tardar unos segundos)</div>';
+  overlay.classList.add('visible');
+
+  var data;
+  try {
+    data = await api('/enemies/' + enemy.id + '/activity');
+  } catch (err) {
+    body.innerHTML = '';
+    var errBox = document.createElement('div');
+    errBox.className = 'enemy-activity-error';
+    errBox.textContent = err.message;
+    body.appendChild(errBox);
+    return;
+  }
+
+  if (!data.resolved) {
+    body.innerHTML = '';
+    var noBox = document.createElement('div');
+    noBox.className = 'enemy-activity-error';
+    noBox.textContent = data.reason || 'No se ha podido identificar a este jugador en BattleMetrics.';
+    body.appendChild(noBox);
+    return;
+  }
+
+  renderEnemyActivity(body, data);
+}
+
+function renderEnemyActivity(body, data) {
+  body.innerHTML = '';
+  var act = data.activity || {};
+
+  // --- Resumen superior ---
+  var summary = document.createElement('div');
+  summary.className = 'enemy-activity-summary';
+  summary.appendChild(activityStat('⏱️ Horas totales', fmtTotalHours(data.totalSeconds)));
+  summary.appendChild(activityStat('🕑 Franja habitual', fmtWindow(act.typicalWindow)));
+  summary.appendChild(activityStat('📅 Últimos ' + (act.days || 21) + ' días', (act.activeHours != null ? act.activeHours + ' h' : '—') + ' · ' + (act.sessionsCount || 0) + ' sesiones'));
+  body.appendChild(summary);
+
+  if (!act.sessionsCount) {
+    var empty = document.createElement('div');
+    empty.className = 'enemy-activity-error';
+    empty.textContent = 'Sin sesiones registradas en los últimos ' + (act.days || 21) + ' días. Puede que no haya jugado, o que sus servidores oculten la lista de jugadores.';
+    body.appendChild(empty);
+    return;
+  }
+
+  // --- Gráfica: franjas horarias (24 barras) ---
+  var hLabel = document.createElement('div');
+  hLabel.className = 'enemy-activity-chart-title';
+  hLabel.textContent = 'Por hora del día (hora de España)';
+  body.appendChild(hLabel);
+  body.appendChild(buildBarChart(act.hours || [], function(i){
+    return twoDigit(i);
+  }, function(i){ return twoDigit(i) + ':00 – ' + twoDigit((i + 1) % 24) + ':00'; }, 'h'));
+
+  // --- Gráfica: días de la semana (7 barras) ---
+  var wLabel = document.createElement('div');
+  wLabel.className = 'enemy-activity-chart-title';
+  wLabel.textContent = 'Por día de la semana';
+  body.appendChild(wLabel);
+  body.appendChild(buildBarChart(act.weekdays || [], function(i){
+    return WEEKDAY_LABELS[i];
+  }, function(i){ return WEEKDAY_LABELS[i]; }, 'd'));
+
+  var foot = document.createElement('div');
+  foot.className = 'enemy-activity-foot';
+  foot.textContent = 'Datos de BattleMetrics (todos sus servidores de Rust, no solo el nuestro).';
+  body.appendChild(foot);
+}
+
+function activityStat(label, value) {
+  var box = document.createElement('div');
+  box.className = 'enemy-activity-stat';
+  var l = document.createElement('div');
+  l.className = 'enemy-activity-stat-label';
+  l.textContent = label;
+  var v = document.createElement('div');
+  v.className = 'enemy-activity-stat-value';
+  v.textContent = value;
+  box.appendChild(l);
+  box.appendChild(v);
+  return box;
+}
+
+// Construye una gráfica de barras sencilla en minutos. `labelFn(i)`
+// da la etiqueta bajo cada barra; `titleFn(i)` el tooltip.
+function buildBarChart(values, labelFn, titleFn) {
+  var chart = document.createElement('div');
+  chart.className = 'enemy-activity-chart';
+  var max = Math.max.apply(null, values.concat([1]));
+  values.forEach(function(v, i){
+    var col = document.createElement('div');
+    col.className = 'enemy-activity-bar-col';
+    col.title = titleFn(i) + ' · ' + (Math.round(v / 60 * 10) / 10) + ' h';
+
+    var barWrap = document.createElement('div');
+    barWrap.className = 'enemy-activity-bar-wrap';
+    var bar = document.createElement('div');
+    bar.className = 'enemy-activity-bar';
+    var pct = max > 0 ? (v / max) * 100 : 0;
+    bar.style.height = Math.max(v > 0 ? 4 : 0, pct) + '%';
+    if (v >= max * 0.6 && v > 0) bar.classList.add('peak');
+    barWrap.appendChild(bar);
+
+    var lab = document.createElement('div');
+    lab.className = 'enemy-activity-bar-label';
+    lab.textContent = labelFn(i);
+
+    col.appendChild(barWrap);
+    col.appendChild(lab);
+    chart.appendChild(col);
+  });
+  return chart;
+}
+
+function setupEnemyActivityModal() {
+  var overlay = document.getElementById('enemy-activity-overlay');
+  if (!overlay) return;
+  document.getElementById('enemy-activity-close').addEventListener('click', function(){
+    overlay.classList.remove('visible');
+  });
+  overlay.addEventListener('click', function(e){
+    if (e.target === this) overlay.classList.remove('visible');
   });
 }
 
@@ -2521,6 +2685,7 @@ setupRoleModal();
 setupBoard();
 setupStats();
 setupEnemies();
+setupEnemyActivityModal();
 // La calculadora de raideo ahora vive dentro de la pestaña "Intel"
 // (intel.js), con un diseño renovado. Se elimina la inicialización
 // antigua para no chocar con los elementos ya retirados de esta vista.
