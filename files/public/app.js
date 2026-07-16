@@ -1673,7 +1673,7 @@ function setupNav() {
       window.scrollTo({ top: 0, behavior: 'smooth' });
       tab.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
 
-      if (view === 'inicio') { await fetchWipeSignups(); await fetchPoints(); renderFaults(); }
+      if (view === 'inicio') { await fetchWipeSignups(); await fetchPoints(); renderFaults(); await fetchWipeTheme(); renderWipeTheme(); }
       if (view === 'taquilla') renderLocker();
       if (view === 'zerg') renderOrgchart();
       if (view === 'wipes') { wipeWeekOffset = 0; await fetchWipeSignups(); renderWipes(); }
@@ -2087,6 +2087,185 @@ function renderWipes() {
 }
 
 /* ============================================================
+   TEMÁTICA DEL PRÓXIMO WIPE 🎭 — una palabra compartida por
+   toda la Zerg a partir de la cual se adaptan los perfiles.
+   La genera el servidor la primera vez que alguien pulsa;
+   solo Gru puede volver a tirar.
+   ============================================================ */
+var wipeTheme = null;     // {wipeId, word, generatedBy, ts} | null
+var themeWipeRef = null;  // wipe al que aplica la temática
+var themeSpinning = false;
+
+// Palabras señuelo SOLO para la animación de ruleta (la palabra
+// real siempre la decide el servidor).
+var THEME_DECOYS = ['botijo', 'ornitorrinco', 'matasuegras', 'zigurat', 'ajolote', 'polisón',
+  'deshollinador', 'catoblepas', 'bacinilla', 'zanfona', 'tragasables', 'okapi', 'chirimbolo', 'faquir'];
+
+// El "próximo wipe": el primero que empieza hoy o más adelante.
+function nextWipeForTheme() {
+  var today = startOfDay(new Date());
+  var monday = mondayOfWeek(new Date());
+  var all = [];
+  for (var w = 0; w <= MAX_WEEKS_AHEAD; w++) {
+    all = all.concat(wipesForWeek(addDays(monday, w * 7)));
+  }
+  all.sort(function(a, b){ return a.start - b.start; });
+  for (var i = 0; i < all.length; i++) {
+    if (all[i].start >= today) return all[i];
+  }
+  return null;
+}
+
+async function fetchWipeTheme() {
+  themeWipeRef = nextWipeForTheme();
+  wipeTheme = null;
+  if (!themeWipeRef) return;
+  try {
+    var data = await api('/wipes/' + encodeURIComponent(themeWipeRef.id) + '/theme');
+    wipeTheme = data.theme;
+  } catch (e) { /* sin temática por ahora; el panel mostrará el botón */ }
+}
+
+function themeWipeTag() {
+  if (!themeWipeRef) return '';
+  return (themeWipeRef.icon ? themeWipeRef.icon + ' ' : '') + 'Wipe ' + themeWipeRef.label +
+    ' · ' + fmtDate(themeWipeRef.start) + ' → ' + fmtDate(themeWipeRef.end);
+}
+
+function buildThemeCardShell() {
+  var card = document.createElement('div');
+  card.className = 'theme-card';
+  var eyebrow = document.createElement('div');
+  eyebrow.className = 'theme-eyebrow';
+  eyebrow.textContent = '🎭 Temática próximo wipe';
+  card.appendChild(eyebrow);
+  return card;
+}
+
+function finishThemeCard(card) {
+  var tag = document.createElement('div');
+  tag.className = 'theme-wipe-tag';
+  tag.textContent = themeWipeTag();
+  card.appendChild(tag);
+  var confetti = document.createElement('div');
+  confetti.className = 'confetti-layer';
+  confetti.id = 'theme-confetti';
+  card.appendChild(confetti);
+}
+
+function renderWipeTheme() {
+  var panel = document.getElementById('theme-panel');
+  if (!panel) return;
+  panel.innerHTML = '';
+  if (!themeWipeRef) return;
+
+  var card = buildThemeCardShell();
+
+  if (!wipeTheme) {
+    var hint = document.createElement('p');
+    hint.className = 'theme-hint';
+    hint.textContent = 'Pulsa y el destino dirá UNA palabra. Toda la Zerg adaptará su perfil a esa temática para el próximo wipe. La palabra se guarda: todos veréis la misma.';
+    card.appendChild(hint);
+
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn';
+    btn.textContent = '🎭 Revelar temática';
+    btn.disabled = themeSpinning;
+    btn.addEventListener('click', revealWipeTheme);
+    card.appendChild(btn);
+  } else {
+    var word = document.createElement('div');
+    word.className = 'theme-word is-revealed';
+    word.textContent = wipeTheme.word;
+    card.appendChild(word);
+
+    var meta = document.createElement('div');
+    meta.className = 'theme-meta';
+    var gen = userByUsername(wipeTheme.generatedBy);
+    meta.textContent = 'revelada por ' + (gen ? gen.alias : (wipeTheme.generatedBy || '¿?')) +
+      ' · adapta tu perfil a la temática';
+    card.appendChild(meta);
+
+    if (currentUser && isGru(currentUser)) {
+      var reroll = document.createElement('button');
+      reroll.type = 'button';
+      reroll.className = 'theme-reroll';
+      reroll.textContent = '↻ Volver a tirar (solo Gru)';
+      reroll.disabled = themeSpinning;
+      reroll.addEventListener('click', rerollWipeTheme);
+      card.appendChild(reroll);
+    }
+  }
+
+  finishThemeCard(card);
+  panel.appendChild(card);
+}
+
+// Animación de ruleta: palabras señuelo pasando rápido mientras el
+// servidor decide; al terminar aparece la real con confeti. 🎉
+function runThemeSpin(promise) {
+  themeSpinning = true;
+  var panel = document.getElementById('theme-panel');
+  if (panel) {
+    panel.innerHTML = '';
+    var card = buildThemeCardShell();
+    var word = document.createElement('div');
+    word.className = 'theme-word is-spinning';
+    word.id = 'theme-spin-word';
+    word.textContent = '…';
+    card.appendChild(word);
+    finishThemeCard(card);
+    panel.appendChild(card);
+  }
+
+  var i = Math.floor(Math.random() * THEME_DECOYS.length);
+  var interval = setInterval(function(){
+    var el = document.getElementById('theme-spin-word');
+    if (el) el.textContent = THEME_DECOYS[i % THEME_DECOYS.length];
+    i++;
+  }, 90);
+
+  var minSpin = new Promise(function(resolve){ setTimeout(resolve, 1700); });
+  Promise.all([promise, minSpin]).then(function(results){
+    clearInterval(interval);
+    themeSpinning = false;
+    if (results[0]) wipeTheme = results[0];
+    renderWipeTheme();
+    burstConfetti(document.getElementById('theme-confetti'), '#ffd400');
+  }).catch(function(err){
+    clearInterval(interval);
+    themeSpinning = false;
+    renderWipeTheme();
+    showToast(err.message);
+  });
+}
+
+function revealWipeTheme() {
+  if (!themeWipeRef || themeSpinning) return;
+  runThemeSpin(
+    api('/wipes/' + encodeURIComponent(themeWipeRef.id) + '/theme', { method: 'POST' })
+      .then(function(data){
+        // La revelación deja aviso en el tablón: lo refrescamos.
+        fetchBoard().then(renderBoard).catch(function(){});
+        return data.theme;
+      })
+  );
+}
+
+function rerollWipeTheme() {
+  if (!themeWipeRef || themeSpinning || !wipeTheme) return;
+  if (!window.confirm('¿Seguro, Gru? La palabra actual («' + wipeTheme.word + '») quedará anulada y el destino dirá otra.')) return;
+  runThemeSpin(
+    api('/wipes/' + encodeURIComponent(themeWipeRef.id) + '/theme/reroll', { method: 'POST' })
+      .then(function(data){
+        fetchBoard().then(renderBoard).catch(function(){});
+        return data.theme;
+      })
+  );
+}
+
+/* ============================================================
    AMONESTACIONES Y MÉRITOS — puntos por wipe, en Inicio
    ============================================================ */
 var FAULT_LIMIT = 10;
@@ -2438,16 +2617,27 @@ async function showApp(user) {
   document.querySelectorAll('.view').forEach(function(v){ v.classList.remove('active'); });
   document.getElementById('view-inicio').classList.add('active');
 
-  await fetchUsers();
-  await fetchBoard();
-  await fetchWipeSignups();
-  await fetchPoints();
-  renderMembers();
-  renderBoard();
-  renderFaults();
-
+  // Mostramos la app inmediatamente, sin esperar a los datos
   loginScreen.style.display = 'none';
   appShell.style.display = 'flex';
+
+  // Cargamos todo en paralelo y pintamos según va llegando.
+  // fetchUsers y fetchBoard van agrupados porque el tablón usa
+  // los avatares de USERS para pintarse.
+  var usersAndBoard = Promise.all([fetchUsers(), fetchBoard()]).then(function(){
+    renderMembers();
+    renderBoard();
+  });
+
+  await Promise.all([
+    usersAndBoard,
+    fetchWipeSignups(),
+    fetchPoints(),
+    fetchWipeTheme().then(renderWipeTheme)
+  ]);
+
+  // renderFaults necesita signups + points + users, por eso va al final
+  renderFaults();
 }
 
 function backToLogin() {
