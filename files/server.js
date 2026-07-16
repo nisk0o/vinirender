@@ -47,6 +47,94 @@ const PROMOTION_MAP = {
 const BASE_TEAM_SIZES = ['', 'trio', 'zerg'];
 const BASE_OUTCOMES = ['sobrevivio', 'raid_offline', 'raid_online', 'decay', 'abandonada'];
 
+// ---- Temática del wipe 🎭 ----
+// Lista curada de sustantivos en español con jugo para disfrazar
+// los perfiles de la Zerg. La palabra se sortea en el servidor y
+// se guarda por wipe: todos ven la misma. Al re-tirar (solo Gru)
+// se evita repetir palabras ya usadas en wipes anteriores.
+const THEME_WORDS = [
+  // Objetos inesperados y trastos de otra época
+  'botijo', 'porrón', 'orinal', 'bacinilla', 'badajo', 'matasuegras', 'felpudo', 'plumero',
+  'embudo', 'sifón', 'periscopio', 'catalejo', 'astrolabio', 'sextante', 'teodolito', 'fuelle',
+  'yunque', 'garrote', 'zanco', 'monóculo', 'trabuco', 'arcabuz', 'guillotina', 'grillete',
+  'candelabro', 'quinqué', 'samovar', 'palmatoria', 'escupidera', 'jofaina', 'almirez', 'aldaba',
+  'picaporte', 'cerrojo', 'dedal', 'ovillo', 'rueca', 'telar', 'trillo', 'guadaña',
+  'hoz', 'carraca', 'zambomba', 'cencerro', 'cascabel', 'birrete', 'bombín', 'chistera',
+  'mitra', 'sotana', 'peluquín', 'escafandra', 'pararrayos', 'veleta', 'molinillo', 'sacacorchos',
+  'abrecartas', 'pisapapeles', 'matamoscas', 'espantapájaros', 'botafumeiro', 'incensario', 'confesionario', 'púlpito',
+  'sarcófago', 'relicario', 'amuleto', 'talismán', 'péndulo', 'diapasón', 'metrónomo', 'alambique',
+  'crisol', 'fragua', 'cepo', 'escotilla', 'batiscafo', 'dirigible', 'autogiro', 'funicular',
+  'tartana', 'diligencia', 'carromato', 'velocípedo', 'monociclo', 'tándem', 'sidecar', 'catapulta',
+  'ballesta', 'bumerán', 'retrete', 'tridente',
+  // Oficios extintos, ambulantes o directamente sospechosos
+  'deshollinador', 'afilador', 'pregonero', 'sereno', 'farolero', 'cetrero', 'taxidermista', 'apicultor',
+  'funambulista', 'contorsionista', 'escapista', 'faquir', 'ermitaño', 'exorcista', 'embalsamador', 'forense',
+  'curtidor', 'talabartero', 'tonelero', 'cestero', 'espartero', 'alfarero', 'cantero', 'vidriero',
+  'calafate', 'buhonero', 'trapero', 'ropavejero', 'chamarilero', 'usurero', 'alguacil', 'inquisidor',
+  'copista', 'amanuense', 'encuadernador', 'cartógrafo', 'vigía', 'grumete', 'contramaestre', 'corsario',
+  'bucanero', 'filibustero', 'herrador', 'esquilador', 'fogonero', 'guardagujas', 'zahorí', 'curandero',
+  'nigromante', 'boticario', 'sacamuelas', 'matarife', 'aguador', 'saltimbanqui', 'titiritero', 'volatinero',
+  'tragasables', 'tragafuegos', 'tahúr', 'verdugo', 'sepulturero', 'ventrílocuo', 'campanero', 'farero',
+  'domador', 'trapecista', 'malabarista', 'falsificador',
+  // Bichos raros
+  'ajolote', 'tardígrado', 'okapi', 'quokka', 'capibara', 'pangolín', 'tapir', 'dugongo',
+  'manatí', 'casuario', 'kakapo', 'equidna', 'wombat', 'binturong', 'tarsero', 'zarigüeya',
+  'coatí', 'kinkajú', 'ocelote', 'serval', 'caracal', 'babirusa', 'saiga', 'órix',
+  'damán', 'jerbo', 'degú', 'vizcacha', 'musaraña', 'desmán', 'lirón', 'garduña',
+  'gineta', 'armiño', 'glotón', 'quebrantahuesos', 'alimoche', 'abubilla', 'avutarda', 'alcaraván',
+  'somormujo', 'chotacabras', 'urogallo', 'avefría', 'zarapito', 'cernícalo', 'mochuelo', 'alcatraz',
+  'cormorán', 'frailecillo', 'dodo', 'celacanto', 'lamprea', 'congrio', 'cabracho', 'pejesapo',
+  'rape', 'solenodonte', 'ñandú', 'pécari', 'agutí', 'narval', 'ornitorrinco', 'armadillo',
+  'mantarraya', 'suricato',
+  // Palabros y mejunjes
+  'chirimbolo', 'cachivache', 'artilugio', 'mamotreto', 'adminículo', 'armatoste', 'galimatías', 'esperpento',
+  'mejunje', 'potingue', 'pócima', 'brebaje', 'ungüento', 'cataplasma', 'emplasto', 'zurriago',
+  'zurrón', 'petate', 'hatillo', 'perorata', 'soflama', 'retahíla', 'letanía', 'monserga',
+  'charanga', 'jarana', 'cuchipanda', 'francachela', 'aquelarre', 'sarao', 'guateque', 'bodrio',
+  'engendro', 'adefesio', 'mamarracho', 'espantajo', 'fantoche', 'monigote', 'pelele', 'títere',
+  'polichinela', 'arlequín', 'alfeñique',
+  // Comida improbable
+  'criadillas', 'callos', 'mollejas', 'chicharrón', 'botillo', 'farinato', 'morteruelo', 'ajoblanco',
+  'atascaburras', 'gachas', 'percebe', 'espardeña', 'cañaílla', 'coquina', 'zamburiña', 'quisquilla',
+  'santiaguiño', 'centollo', 'nécora', 'bogavante', 'angula', 'cococha', 'mojama', 'torrezno',
+  // Lugares con encanto (dudoso)
+  'zigurat', 'mausoleo', 'osario', 'lazareto', 'hospicio', 'tugurio', 'antro', 'garito',
+  'timba', 'zoco', 'caravasar', 'palomar', 'estercolero', 'muladar', 'ciénaga', 'marisma',
+  'turbera', 'lodazal', 'páramo', 'erial', 'andurrial', 'vericueto', 'zahúrda', 'pocilga',
+  'cuchitril', 'zaquizamí', 'desván', 'zulo', 'mazmorra', 'calabozo', 'adarve', 'barbacana',
+  'almena', 'atalaya', 'alcazaba', 'aljibe', 'acequia', 'aceña', 'almazara', 'lagar',
+  'hórreo', 'catacumba', 'manicomio', 'laberinto', 'iglú',
+  // Criaturas y engendros
+  'basilisco', 'mandrágora', 'catoblepas', 'anfisbena', 'mantícora', 'tarasca', 'cuélebre', 'trasgo',
+  'súcubo', 'íncubo', 'homúnculo', 'leviatán', 'behemot', 'cancerbero', 'gorgona', 'arpía',
+  'lamia', 'kelpie', 'selkie', 'wendigo', 'chupacabras', 'sacamantecas', 'ojáncano', 'banshee',
+  'gólem', 'kraken', 'yeti', 'quimera', 'hidra', 'cíclope', 'valquiria', 'licántropo',
+  'espectro', 'gárgola', 'minotauro', 'fénix',
+  // Instrumentos que nadie sabe tocar
+  'zanfona', 'chirimía', 'dulzaina', 'sacabuche', 'serpentón', 'bombardino', 'ocarina', 'birimbao',
+  'theremín', 'clavicémbalo', 'espineta', 'celesta', 'carillón',
+  // Ropajes de otro siglo
+  'polisón', 'miriñaque', 'verdugado', 'gorguera', 'levita', 'casaca', 'jubón', 'capirote',
+  'tricornio', 'chambergo', 'montera', 'cofia', 'escarpín', 'alpargata', 'zueco', 'polaina',
+  'refajo', 'faltriquera', 'coraza', 'celada', 'yelmo', 'gola', 'rodela', 'adarga'
+];
+
+function rowToTheme(row) {
+  return { wipeId: row.wipe_id, word: row.word, generatedBy: row.generated_by || '', ts: Number(row.ts) };
+}
+
+// Sortea una palabra evitando las ya usadas en otros wipes (y la
+// actual, si se pasa). Si se agotara la lista entera, se permite repetir.
+async function pickThemeWord(excludeWord) {
+  const used = await db.select('wipe_themes', 'select=word');
+  const usedSet = new Set((used || []).map(r => String(r.word).toLowerCase()));
+  if (excludeWord) usedSet.add(String(excludeWord).toLowerCase());
+  let pool = THEME_WORDS.filter(w => !usedSet.has(w.toLowerCase()));
+  if (!pool.length) pool = THEME_WORDS.filter(w => w.toLowerCase() !== String(excludeWord || '').toLowerCase());
+  if (!pool.length) pool = THEME_WORDS;
+  return pool[crypto.randomInt(pool.length)];
+}
+
 // ------------------------------------------------------------
 // Utilidades de contraseña (scrypt + salt, comparación insensible
 // a mayúsculas/minúsculas para mantener el comportamiento original)
@@ -662,6 +750,66 @@ async function handleApi(req, res, pathname) {
 
     await db.upsert('wipe_signups', { wipe_id: wipeIdVal, trios: s.trios, main: s.main }, 'wipe_id');
     return sendJSON(res, 200, { signups: s });
+  }
+
+  // ---- TEMÁTICA DEL WIPE 🎭 ----
+  // Consultar la temática de un wipe (null si aún no se ha revelado).
+  if ((m = pathname.match(/^\/api\/wipes\/([^/]+)\/theme$/)) && method === 'GET') {
+    if (!requireAuth()) return;
+    const wipeIdVal = decodeURIComponent(m[1]);
+    const rows = await db.select('wipe_themes', `select=*&wipe_id=eq.${encodeURIComponent(wipeIdVal)}`);
+    return sendJSON(res, 200, { theme: rows && rows[0] ? rowToTheme(rows[0]) : null });
+  }
+
+  // Revelar la temática: cualquiera puede pulsar, pero solo la
+  // primera pulsación genera la palabra; el resto recibe la misma.
+  if ((m = pathname.match(/^\/api\/wipes\/([^/]+)\/theme$/)) && method === 'POST') {
+    if (!requireAuth()) return;
+    const wipeIdVal = decodeURIComponent(m[1]);
+    const existing = await db.select('wipe_themes', `select=*&wipe_id=eq.${encodeURIComponent(wipeIdVal)}`);
+    if (existing && existing[0]) {
+      return sendJSON(res, 200, { theme: rowToTheme(existing[0]), existed: true });
+    }
+    const word = await pickThemeWord();
+    let rows;
+    try {
+      rows = await db.insert('wipe_themes', {
+        wipe_id: wipeIdVal, word, generated_by: user.username, ts: Date.now()
+      });
+    } catch (e) {
+      // Dos personas han pulsado a la vez: gana la primera inserción
+      // (wipe_id es clave primaria) y devolvemos esa palabra.
+      const again = await db.select('wipe_themes', `select=*&wipe_id=eq.${encodeURIComponent(wipeIdVal)}`);
+      if (again && again[0]) return sendJSON(res, 200, { theme: rowToTheme(again[0]), existed: true });
+      throw e;
+    }
+    // Lo anunciamos en el tablón para que se entere toda la Zerg.
+    await db.insert('board_notes', {
+      username: user.username,
+      text: `🎭 Temática del próximo wipe revelada: «${word.toUpperCase()}». ¡A adaptar los perfiles, minions!`,
+      ts: Date.now()
+    });
+    return sendJSON(res, 201, { theme: rowToTheme(rows[0]) });
+  }
+
+  // Volver a tirar la temática (solo Gru): sale una palabra distinta.
+  if ((m = pathname.match(/^\/api\/wipes\/([^/]+)\/theme\/reroll$/)) && method === 'POST') {
+    if (!requireGru()) return;
+    const wipeIdVal = decodeURIComponent(m[1]);
+    const existing = await db.select('wipe_themes', `select=*&wipe_id=eq.${encodeURIComponent(wipeIdVal)}`);
+    if (!existing || !existing[0]) {
+      return sendJSON(res, 404, { error: 'Ese wipe todavía no tiene temática. Revélala primero.' });
+    }
+    const word = await pickThemeWord(existing[0].word);
+    const rows = await db.update('wipe_themes', `wipe_id=eq.${encodeURIComponent(wipeIdVal)}`, {
+      word, generated_by: user.username, ts: Date.now()
+    });
+    await db.insert('board_notes', {
+      username: user.username,
+      text: `🎭 Gru ha vuelto a tirar la temática del próximo wipe: ahora es «${word.toUpperCase()}». Lo anterior queda anulado.`,
+      ts: Date.now()
+    });
+    return sendJSON(res, 200, { theme: rowToTheme(rows[0]) });
   }
 
   // ---- AMONESTACIONES Y MÉRITOS (puntos por wipe) ----
