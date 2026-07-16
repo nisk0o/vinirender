@@ -166,6 +166,23 @@ a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid 
 .member-alias { font-family: var(--font-display); font-size: 1rem; letter-spacing: 0.03em; color: var(--color-text); }
 .member-tag { font-family: var(--font-mono); font-size: 0.65rem; color: var(--color-text-faint); text-transform: uppercase; letter-spacing: 0.08em; margin-top: 0.2rem; }
 .member-card.is-leader .member-tag { color: var(--color-minion-yellow); }
+/* ---- Temática del próximo wipe 🎭 ---- */
+.theme-panel { margin: -1.25rem 0 2.75rem; }
+.theme-card { position: relative; overflow: hidden; text-align: center; padding: 1.6rem 1.25rem 1.8rem; border-radius: var(--radius-md); border: 1px solid rgba(230,0,126,0.35); background: linear-gradient(160deg, rgba(230,0,126,0.09), var(--color-bg-raised) 55%); box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
+.theme-card::before { content: ''; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(circle at 50% 0%, rgba(255,212,0,0.07), transparent 60%); }
+.theme-card > * { position: relative; }
+.theme-eyebrow { font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--color-fucsia); margin-bottom: 0.9rem; }
+.theme-wipe-tag { font-family: var(--font-mono); font-size: 0.7rem; color: var(--color-text-faint); letter-spacing: 0.06em; margin-top: 0.75rem; }
+.theme-hint { color: var(--color-text-dim); font-size: 0.9rem; max-width: 460px; margin: 0.35rem auto 1.1rem; }
+.theme-word { font-family: var(--font-display); font-size: clamp(2.3rem, 8vw, 3.6rem); line-height: 1.05; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-minion-yellow); text-shadow: 0 0 26px rgba(255,212,0,0.35); margin: 0.3rem 0 0.1rem; }
+.theme-word.is-spinning { color: var(--color-text-dim); text-shadow: none; filter: blur(0.6px); }
+.theme-word.is-revealed { animation: theme-pop 0.5s cubic-bezier(0.2, 1.4, 0.4, 1) both; }
+@keyframes theme-pop { from { opacity: 0; transform: scale(0.7); } to { opacity: 1; transform: scale(1); } }
+.theme-meta { font-family: var(--font-mono); font-size: 0.72rem; color: var(--color-text-faint); letter-spacing: 0.06em; margin-top: 0.6rem; }
+.theme-reroll { margin-top: 0.9rem; background: none; border: 1px solid var(--color-metal-light); border-radius: var(--radius-sm); color: var(--color-text-dim); font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; padding: 0.45rem 0.9rem; cursor: pointer; transition: border-color 0.15s ease, color 0.15s ease; }
+.theme-reroll:hover { border-color: var(--color-fucsia); color: var(--color-fucsia-glow); }
+.theme-reroll:disabled { opacity: 0.45; cursor: not-allowed; }
+
 .coming-soon { margin-top: 3rem; border: 1.5px dashed var(--color-metal-light); border-radius: var(--radius-md); padding: 1.75rem; text-align: center; color: var(--color-text-faint); font-family: var(--font-mono); font-size: 0.85rem; line-height: 1.6; }
 .coming-soon strong { color: var(--color-fucsia); display: block; font-family: var(--font-display); font-size: 1.1rem; letter-spacing: 0.04em; margin-bottom: 0.5rem; text-transform: uppercase; }
 
@@ -999,6 +1016,9 @@ button.fault-chip:hover { border-color: #ff4d4d; background: rgba(255,77,77,0.15
         <h1 class="welcome-title">Bienvenido a la Zerg, <span id="welcome-name">superviviente</span></h1>
         <p class="welcome-text">Esto es el cuartel general de Vinicus y Amigos. Pronto aquí organizaremos wipes, raids, encuestas y mucho más.</p>
       </div>
+
+      <div class="theme-panel" id="theme-panel"></div>
+
       <div class="section-label">
         <span class="eyebrow">Los minions de Gru</span>
         <span class="line"></span>
