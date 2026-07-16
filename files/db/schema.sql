@@ -197,6 +197,20 @@ create table if not exists base_draft_votes (
 create unique index if not exists base_draft_votes_idx
   on base_draft_votes (draft_id, username);
 
+-- ============================================================
+-- TEMÁTICA DEL WIPE 🎭
+-- ============================================================
+-- Una palabra (sustantivo) por wipe, compartida por toda la Zerg:
+-- la primera persona que pulsa el botón la genera y queda guardada;
+-- solo Gru puede volver a tirar. A partir de ella todos adaptan
+-- sus perfiles para ese wipe.
+create table if not exists wipe_themes (
+  wipe_id      text primary key,
+  word         text not null,
+  generated_by text,
+  ts           bigint not null
+);
+
 -- Row Level Security: la app solo habla con Supabase desde el
 -- backend Node usando la service_role key, que se salta RLS por
 -- diseño. Aun así dejamos RLS activada y sin políticas públicas,
@@ -217,3 +231,4 @@ alter table base_usages  enable row level security;
 alter table base_drafts  enable row level security;
 alter table base_draft_candidates enable row level security;
 alter table base_draft_votes      enable row level security;
+alter table wipe_themes  enable row level security;
