@@ -48,91 +48,147 @@ const BASE_TEAM_SIZES = ['', 'trio', 'zerg'];
 const BASE_OUTCOMES = ['sobrevivio', 'raid_offline', 'raid_online', 'decay', 'abandonada'];
 
 // ---- Temática del wipe 🎭 ----
-// Lista curada de sustantivos en español con jugo para disfrazar
-// los perfiles de la Zerg. La palabra se sortea en el servidor y
-// se guarda por wipe: todos ven la misma. Al re-tirar (solo Gru)
-// se evita repetir palabras ya usadas en wipes anteriores.
-const THEME_WORDS = [
-  // Objetos inesperados y trastos de otra época
-  'botijo', 'porrón', 'orinal', 'bacinilla', 'badajo', 'matasuegras', 'felpudo', 'plumero',
-  'embudo', 'sifón', 'periscopio', 'catalejo', 'astrolabio', 'sextante', 'teodolito', 'fuelle',
-  'yunque', 'garrote', 'zanco', 'monóculo', 'trabuco', 'arcabuz', 'guillotina', 'grillete',
-  'candelabro', 'quinqué', 'samovar', 'palmatoria', 'escupidera', 'jofaina', 'almirez', 'aldaba',
-  'picaporte', 'cerrojo', 'dedal', 'ovillo', 'rueca', 'telar', 'trillo', 'guadaña',
-  'hoz', 'carraca', 'zambomba', 'cencerro', 'cascabel', 'birrete', 'bombín', 'chistera',
-  'mitra', 'sotana', 'peluquín', 'escafandra', 'pararrayos', 'veleta', 'molinillo', 'sacacorchos',
-  'abrecartas', 'pisapapeles', 'matamoscas', 'espantapájaros', 'botafumeiro', 'incensario', 'confesionario', 'púlpito',
-  'sarcófago', 'relicario', 'amuleto', 'talismán', 'péndulo', 'diapasón', 'metrónomo', 'alambique',
-  'crisol', 'fragua', 'cepo', 'escotilla', 'batiscafo', 'dirigible', 'autogiro', 'funicular',
-  'tartana', 'diligencia', 'carromato', 'velocípedo', 'monociclo', 'tándem', 'sidecar', 'catapulta',
-  'ballesta', 'bumerán', 'retrete', 'tridente',
-  // Oficios extintos, ambulantes o directamente sospechosos
-  'deshollinador', 'afilador', 'pregonero', 'sereno', 'farolero', 'cetrero', 'taxidermista', 'apicultor',
-  'funambulista', 'contorsionista', 'escapista', 'faquir', 'ermitaño', 'exorcista', 'embalsamador', 'forense',
-  'curtidor', 'talabartero', 'tonelero', 'cestero', 'espartero', 'alfarero', 'cantero', 'vidriero',
-  'calafate', 'buhonero', 'trapero', 'ropavejero', 'chamarilero', 'usurero', 'alguacil', 'inquisidor',
-  'copista', 'amanuense', 'encuadernador', 'cartógrafo', 'vigía', 'grumete', 'contramaestre', 'corsario',
-  'bucanero', 'filibustero', 'herrador', 'esquilador', 'fogonero', 'guardagujas', 'zahorí', 'curandero',
-  'nigromante', 'boticario', 'sacamuelas', 'matarife', 'aguador', 'saltimbanqui', 'titiritero', 'volatinero',
-  'tragasables', 'tragafuegos', 'tahúr', 'verdugo', 'sepulturero', 'ventrílocuo', 'campanero', 'farero',
-  'domador', 'trapecista', 'malabarista', 'falsificador',
-  // Bichos raros
-  'ajolote', 'tardígrado', 'okapi', 'quokka', 'capibara', 'pangolín', 'tapir', 'dugongo',
-  'manatí', 'casuario', 'kakapo', 'equidna', 'wombat', 'binturong', 'tarsero', 'zarigüeya',
-  'coatí', 'kinkajú', 'ocelote', 'serval', 'caracal', 'babirusa', 'saiga', 'órix',
-  'damán', 'jerbo', 'degú', 'vizcacha', 'musaraña', 'desmán', 'lirón', 'garduña',
-  'gineta', 'armiño', 'glotón', 'quebrantahuesos', 'alimoche', 'abubilla', 'avutarda', 'alcaraván',
-  'somormujo', 'chotacabras', 'urogallo', 'avefría', 'zarapito', 'cernícalo', 'mochuelo', 'alcatraz',
-  'cormorán', 'frailecillo', 'dodo', 'celacanto', 'lamprea', 'congrio', 'cabracho', 'pejesapo',
-  'rape', 'solenodonte', 'ñandú', 'pécari', 'agutí', 'narval', 'ornitorrinco', 'armadillo',
-  'mantarraya', 'suricato',
-  // Palabros y mejunjes
-  'chirimbolo', 'cachivache', 'artilugio', 'mamotreto', 'adminículo', 'armatoste', 'galimatías', 'esperpento',
-  'mejunje', 'potingue', 'pócima', 'brebaje', 'ungüento', 'cataplasma', 'emplasto', 'zurriago',
-  'zurrón', 'petate', 'hatillo', 'perorata', 'soflama', 'retahíla', 'letanía', 'monserga',
-  'charanga', 'jarana', 'cuchipanda', 'francachela', 'aquelarre', 'sarao', 'guateque', 'bodrio',
-  'engendro', 'adefesio', 'mamarracho', 'espantajo', 'fantoche', 'monigote', 'pelele', 'títere',
-  'polichinela', 'arlequín', 'alfeñique',
-  // Comida improbable
-  'criadillas', 'callos', 'mollejas', 'chicharrón', 'botillo', 'farinato', 'morteruelo', 'ajoblanco',
-  'atascaburras', 'gachas', 'percebe', 'espardeña', 'cañaílla', 'coquina', 'zamburiña', 'quisquilla',
-  'santiaguiño', 'centollo', 'nécora', 'bogavante', 'angula', 'cococha', 'mojama', 'torrezno',
-  // Lugares con encanto (dudoso)
-  'zigurat', 'mausoleo', 'osario', 'lazareto', 'hospicio', 'tugurio', 'antro', 'garito',
-  'timba', 'zoco', 'caravasar', 'palomar', 'estercolero', 'muladar', 'ciénaga', 'marisma',
-  'turbera', 'lodazal', 'páramo', 'erial', 'andurrial', 'vericueto', 'zahúrda', 'pocilga',
-  'cuchitril', 'zaquizamí', 'desván', 'zulo', 'mazmorra', 'calabozo', 'adarve', 'barbacana',
-  'almena', 'atalaya', 'alcazaba', 'aljibe', 'acequia', 'aceña', 'almazara', 'lagar',
-  'hórreo', 'catacumba', 'manicomio', 'laberinto', 'iglú',
-  // Criaturas y engendros
-  'basilisco', 'mandrágora', 'catoblepas', 'anfisbena', 'mantícora', 'tarasca', 'cuélebre', 'trasgo',
-  'súcubo', 'íncubo', 'homúnculo', 'leviatán', 'behemot', 'cancerbero', 'gorgona', 'arpía',
-  'lamia', 'kelpie', 'selkie', 'wendigo', 'chupacabras', 'sacamantecas', 'ojáncano', 'banshee',
-  'gólem', 'kraken', 'yeti', 'quimera', 'hidra', 'cíclope', 'valquiria', 'licántropo',
-  'espectro', 'gárgola', 'minotauro', 'fénix',
-  // Instrumentos que nadie sabe tocar
-  'zanfona', 'chirimía', 'dulzaina', 'sacabuche', 'serpentón', 'bombardino', 'ocarina', 'birimbao',
-  'theremín', 'clavicémbalo', 'espineta', 'celesta', 'carillón',
-  // Ropajes de otro siglo
-  'polisón', 'miriñaque', 'verdugado', 'gorguera', 'levita', 'casaca', 'jubón', 'capirote',
-  'tricornio', 'chambergo', 'montera', 'cofia', 'escarpín', 'alpargata', 'zueco', 'polaina',
-  'refajo', 'faltriquera', 'coraza', 'celada', 'yelmo', 'gola', 'rodela', 'adarga'
+// La temática tiene dos partes:
+//   · un SUSTANTIVO (personaje/disfraz) compartido por toda la Zerg,
+//   · un ADJETIVO distinto para cada participante, ya concordado en
+//     género con el sustantivo.
+// Cada sustantivo lleva su género gramatical (m/f) para que el
+// adjetivo concuerde: "pirata oxidado" pero "sirena oxidada".
+const THEME_NOUNS = [
+  // Personajes y disfraces reconocibles
+  { w: 'pirata', g: 'm' }, { w: 'ninja', g: 'm' }, { w: 'vikingo', g: 'm' }, { w: 'vaquero', g: 'm' },
+  { w: 'astronauta', g: 'm' }, { w: 'robot', g: 'm' }, { w: 'zombi', g: 'm' }, { w: 'payaso', g: 'm' },
+  { w: 'mago', g: 'm' }, { w: 'gladiador', g: 'm' }, { w: 'vampiro', g: 'm' }, { w: 'caballero', g: 'm' },
+  { w: 'samurái', g: 'm' }, { w: 'esqueleto', g: 'm' }, { w: 'fantasma', g: 'm' }, { w: 'demonio', g: 'm' },
+  { w: 'ángel', g: 'm' }, { w: 'cíborg', g: 'm' }, { w: 'faraón', g: 'm' }, { w: 'monje', g: 'm' },
+  { w: 'rey', g: 'm' }, { w: 'bufón', g: 'm' }, { w: 'superhéroe', g: 'm' }, { w: 'villano', g: 'm' },
+  { w: 'cavernícola', g: 'm' }, { w: 'boxeador', g: 'm' }, { w: 'buzo', g: 'm' }, { w: 'minero', g: 'm' },
+  { w: 'granjero', g: 'm' }, { w: 'pescador', g: 'm' }, { w: 'cocinero', g: 'm' }, { w: 'científico', g: 'm' },
+  { w: 'detective', g: 'm' }, { w: 'soldado', g: 'm' }, { w: 'bombero', g: 'm' }, { w: 'torero', g: 'm' },
+  { w: 'gánster', g: 'm' }, { w: 'pistolero', g: 'm' }, { w: 'forajido', g: 'm' }, { w: 'sheriff', g: 'm' },
+  { w: 'capitán', g: 'm' }, { w: 'emperador', g: 'm' }, { w: 'bárbaro', g: 'm' }, { w: 'brujo', g: 'm' },
+  { w: 'hechicero', g: 'm' }, { w: 'druida', g: 'm' }, { w: 'ogro', g: 'm' }, { w: 'duende', g: 'm' },
+  { w: 'gnomo', g: 'm' }, { w: 'trol', g: 'm' }, { w: 'cíclope', g: 'm' }, { w: 'minotauro', g: 'm' },
+  { w: 'hombre lobo', g: 'm' }, { w: 'monstruo', g: 'm' }, { w: 'espantapájaros', g: 'm' }, { w: 'muñeco', g: 'm' },
+  { w: 'gigante', g: 'm' }, { w: 'enano', g: 'm' }, { w: 'príncipe', g: 'm' }, { w: 'mosquetero', g: 'm' },
+  { w: 'explorador', g: 'm' }, { w: 'domador', g: 'm' }, { w: 'mayordomo', g: 'm' }, { w: 'espía', g: 'm' },
+  { w: 'ladrón', g: 'm' }, { w: 'gurú', g: 'm' }, { w: 'chamán', g: 'm' }, { w: 'sabio', g: 'm' },
+  { w: 'campeón', g: 'm' }, { w: 'dios', g: 'm' }, { w: 'titán', g: 'm' }, { w: 'héroe', g: 'm' },
+  // Personajes femeninos
+  { w: 'sirena', g: 'f' }, { w: 'momia', g: 'f' }, { w: 'bruja', g: 'f' }, { w: 'reina', g: 'f' },
+  { w: 'princesa', g: 'f' }, { w: 'hada', g: 'f' }, { w: 'valquiria', g: 'f' }, { w: 'diosa', g: 'f' },
+  { w: 'gárgola', g: 'f' }, { w: 'medusa', g: 'f' }, { w: 'ninfa', g: 'f' }, { w: 'bailarina', g: 'f' },
+  { w: 'amazona', g: 'f' }, { w: 'guerrera', g: 'f' }, { w: 'cazadora', g: 'f' },
+  // Animales disfrazables
+  { w: 'tiburón', g: 'm' }, { w: 'gorila', g: 'm' }, { w: 'oso', g: 'm' }, { w: 'tigre', g: 'm' },
+  { w: 'león', g: 'm' }, { w: 'lobo', g: 'm' }, { w: 'toro', g: 'm' }, { w: 'cocodrilo', g: 'm' },
+  { w: 'pulpo', g: 'm' }, { w: 'cangrejo', g: 'm' }, { w: 'mono', g: 'm' }, { w: 'dragón', g: 'm' },
+  { w: 'pingüino', g: 'm' }, { w: 'flamenco', g: 'm' }, { w: 'búho', g: 'm' }, { w: 'murciélago', g: 'm' },
+  { w: 'rinoceronte', g: 'm' }, { w: 'elefante', g: 'm' }, { w: 'koala', g: 'm' }, { w: 'panda', g: 'm' },
+  { w: 'zorro', g: 'm' }, { w: 'erizo', g: 'm' }, { w: 'mapache', g: 'm' }, { w: 'camaleón', g: 'm' },
+  { w: 'escorpión', g: 'm' }, { w: 'pavo', g: 'm' }, { w: 'burro', g: 'm' }, { w: 'caracol', g: 'm' },
+  { w: 'rana', g: 'f' }, { w: 'tortuga', g: 'f' }, { w: 'serpiente', g: 'f' }, { w: 'abeja', g: 'f' },
+  { w: 'araña', g: 'f' }, { w: 'ballena', g: 'f' }, { w: 'gaviota', g: 'f' }, { w: 'cabra', g: 'f' },
+  { w: 'oveja', g: 'f' }, { w: 'gallina', g: 'f' }, { w: 'ardilla', g: 'f' }, { w: 'jirafa', g: 'f' }
+];
+
+// Índice sustantivo → género, para concordar adjetivos al re-tirar.
+const NOUN_GENDER = {};
+THEME_NOUNS.forEach(n => { NOUN_GENDER[n.w.toLowerCase()] = n.g; });
+
+// Adjetivos con sus dos formas (masculina/femenina). Los invariables
+// (azul, gigante, de gasolinera...) tienen m === f.
+const THEME_ADJECTIVES = [
+  // Colores
+  { m: 'rojo', f: 'roja' }, { m: 'azul', f: 'azul' }, { m: 'dorado', f: 'dorada' }, { m: 'plateado', f: 'plateada' },
+  { m: 'verde', f: 'verde' }, { m: 'morado', f: 'morada' }, { m: 'negro', f: 'negra' }, { m: 'blanco', f: 'blanca' },
+  { m: 'amarillo', f: 'amarilla' }, { m: 'gris', f: 'gris' }, { m: 'rosa', f: 'rosa' }, { m: 'naranja', f: 'naranja' },
+  { m: 'turquesa', f: 'turquesa' }, { m: 'fosforito', f: 'fosforito' }, { m: 'fucsia', f: 'fucsia' }, { m: 'arcoíris', f: 'arcoíris' },
+  // Estados
+  { m: 'oxidado', f: 'oxidada' }, { m: 'mojado', f: 'mojada' }, { m: 'congelado', f: 'congelada' }, { m: 'ardiendo', f: 'ardiendo' },
+  { m: 'roto', f: 'rota' }, { m: 'resucitado', f: 'resucitada' }, { m: 'jubilado', f: 'jubilada' }, { m: 'borracho', f: 'borracha' },
+  { m: 'dormido', f: 'dormida' }, { m: 'cansado', f: 'cansada' }, { m: 'hambriento', f: 'hambrienta' }, { m: 'herido', f: 'herida' },
+  { m: 'quemado', f: 'quemada' }, { m: 'mareado', f: 'mareada' }, { m: 'sudado', f: 'sudada' }, { m: 'despeinado', f: 'despeinada' },
+  { m: 'arrugado', f: 'arrugada' }, { m: 'derretido', f: 'derretida' }, { m: 'inflado', f: 'inflada' }, { m: 'deshidratado', f: 'deshidratada' },
+  { m: 'estreñido', f: 'estreñida' }, { m: 'resfriado', f: 'resfriada' }, { m: 'electrocutado', f: 'electrocutada' }, { m: 'petrificado', f: 'petrificada' },
+  // Personalidad / ánimo
+  { m: 'chulo', f: 'chula' }, { m: 'cobarde', f: 'cobarde' }, { m: 'furioso', f: 'furiosa' }, { m: 'deprimido', f: 'deprimida' },
+  { m: 'eufórico', f: 'eufórica' }, { m: 'paranoico', f: 'paranoica' }, { m: 'tímido', f: 'tímida' }, { m: 'gruñón', f: 'gruñona' },
+  { m: 'presumido', f: 'presumida' }, { m: 'despistado', f: 'despistada' }, { m: 'vago', f: 'vaga' }, { m: 'avaricioso', f: 'avariciosa' },
+  { m: 'cariñoso', f: 'cariñosa' }, { m: 'rencoroso', f: 'rencorosa' }, { m: 'sarcástico', f: 'sarcástica' }, { m: 'dramático', f: 'dramática' },
+  { m: 'filosófico', f: 'filosófica' }, { m: 'nervioso', f: 'nerviosa' }, { m: 'orgulloso', f: 'orgullosa' }, { m: 'inocente', f: 'inocente' },
+  // Rarezas y absurdos
+  { m: 'radiactivo', f: 'radiactiva' }, { m: 'intergaláctico', f: 'intergaláctica' }, { m: 'medieval', f: 'medieval' }, { m: 'mutante', f: 'mutante' },
+  { m: 'invisible', f: 'invisible' }, { m: 'gigante', f: 'gigante' }, { m: 'enano', f: 'enana' }, { m: 'pixelado', f: 'pixelada' },
+  { m: 'embrujado', f: 'embrujada' }, { m: 'hinchable', f: 'hinchable' }, { m: 'holográfico', f: 'holográfica' }, { m: 'magnético', f: 'magnética' },
+  { m: 'biónico', f: 'biónica' }, { m: 'nuclear', f: 'nuclear' }, { m: 'cuántico', f: 'cuántica' }, { m: 'prehistórico', f: 'prehistórica' },
+  { m: 'apocalíptico', f: 'apocalíptica' }, { m: 'legendario', f: 'legendaria' }, { m: 'maldito', f: 'maldita' }, { m: 'bendecido', f: 'bendecida' },
+  { m: 'poseído', f: 'poseída' }, { m: 'clonado', f: 'clonada' }, { m: 'reciclado', f: 'reciclada' }, { m: 'tuneado', f: 'tuneada' },
+  { m: 'falsificado', f: 'falsificada' }, { m: 'de mármol', f: 'de mármol' }, { m: 'de plastilina', f: 'de plastilina' }, { m: 'de gasolinera', f: 'de gasolinera' },
+  { m: 'del futuro', f: 'del futuro' }, { m: 'del más allá', f: 'del más allá' }, { m: 'low cost', f: 'low cost' }, { m: 'de imitación', f: 'de imitación' },
+  { m: 'de oferta', f: 'de oferta' }, { m: 'sin batería', f: 'sin batería' }, { m: 'con resaca', f: 'con resaca' }, { m: 'de purpurina', f: 'de purpurina' },
+  { m: 'de neón', f: 'de neón' }, { m: 'de cartón', f: 'de cartón' }, { m: 'de goma', f: 'de goma' }, { m: 'premium', f: 'premium' },
+  { m: 'deluxe', f: 'deluxe' }, { m: 'vintage', f: 'vintage' }, { m: 'turbo', f: 'turbo' }, { m: 'definitivo', f: 'definitiva' }
 ];
 
 function rowToTheme(row) {
   return { wipeId: row.wipe_id, word: row.word, generatedBy: row.generated_by || '', ts: Number(row.ts) };
 }
+function rowToThemePart(row) {
+  return { username: row.username, adjective: row.adjective, ts: Number(row.ts) };
+}
 
-// Sortea una palabra evitando las ya usadas en otros wipes (y la
-// actual, si se pasa). Si se agotara la lista entera, se permite repetir.
-async function pickThemeWord(excludeWord) {
+// Devuelve la forma del adjetivo según el género del sustantivo.
+function adjText(adj, gender) { return gender === 'f' ? adj.f : adj.m; }
+
+// Baraja (Fisher-Yates con aleatoriedad criptográfica).
+function shuffle(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = crypto.randomInt(i + 1);
+    const tmp = a[i]; a[i] = a[j]; a[j] = tmp;
+  }
+  return a;
+}
+
+// Sortea un sustantivo evitando los ya usados en otros wipes (y el
+// actual, si se pasa). Si se agotara la lista, se permite repetir.
+async function pickNoun(excludeWord) {
   const used = await db.select('wipe_themes', 'select=word');
   const usedSet = new Set((used || []).map(r => String(r.word).toLowerCase()));
   if (excludeWord) usedSet.add(String(excludeWord).toLowerCase());
-  let pool = THEME_WORDS.filter(w => !usedSet.has(w.toLowerCase()));
-  if (!pool.length) pool = THEME_WORDS.filter(w => w.toLowerCase() !== String(excludeWord || '').toLowerCase());
-  if (!pool.length) pool = THEME_WORDS;
+  let pool = THEME_NOUNS.filter(n => !usedSet.has(n.w.toLowerCase()));
+  if (!pool.length) pool = THEME_NOUNS.filter(n => n.w.toLowerCase() !== String(excludeWord || '').toLowerCase());
+  if (!pool.length) pool = THEME_NOUNS;
   return pool[crypto.randomInt(pool.length)];
+}
+
+// Elige `count` adjetivos DISTINTOS (ya concordados con el género),
+// excluyendo los que se pasen (para no repetir con los que ya tienen
+// otros participantes).
+function pickAdjStrings(count, gender, excludeStrings) {
+  const exclude = new Set((excludeStrings || []).map(s => String(s).toLowerCase()));
+  const out = [];
+  const seen = new Set();
+  shuffle(THEME_ADJECTIVES).forEach(adj => {
+    if (out.length >= count) return;
+    const s = adjText(adj, gender);
+    const k = s.toLowerCase();
+    if (exclude.has(k) || seen.has(k)) return;
+    seen.add(k);
+    out.push(s);
+  });
+  return out;
+}
+
+// Reúne la temática completa de un wipe (sustantivo + adjetivos).
+async function buildTheme(wipeIdVal) {
+  const rows = await db.select('wipe_themes', `select=*&wipe_id=eq.${encodeURIComponent(wipeIdVal)}`);
+  if (!rows || !rows[0]) return null;
+  const partRows = await db.select('wipe_theme_parts', `select=*&wipe_id=eq.${encodeURIComponent(wipeIdVal)}&order=ts.asc`);
+  const t = rowToTheme(rows[0]);
+  t.parts = (partRows || []).map(rowToThemePart);
+  return t;
 }
 
 // ------------------------------------------------------------
@@ -753,63 +809,147 @@ async function handleApi(req, res, pathname) {
   }
 
   // ---- TEMÁTICA DEL WIPE 🎭 ----
-  // Consultar la temática de un wipe (null si aún no se ha revelado).
+  // Consultar la temática de un wipe: sustantivo compartido + el
+  // adjetivo de cada participante. null si aún no se ha sorteado.
   if ((m = pathname.match(/^\/api\/wipes\/([^/]+)\/theme$/)) && method === 'GET') {
     if (!requireAuth()) return;
     const wipeIdVal = decodeURIComponent(m[1]);
-    const rows = await db.select('wipe_themes', `select=*&wipe_id=eq.${encodeURIComponent(wipeIdVal)}`);
-    return sendJSON(res, 200, { theme: rows && rows[0] ? rowToTheme(rows[0]) : null });
+    const theme = await buildTheme(wipeIdVal);
+    return sendJSON(res, 200, { theme });
   }
 
-  // Revelar la temática: cualquiera puede pulsar, pero solo la
-  // primera pulsación genera la palabra; el resto recibe la misma.
+  // Sortear o sincronizar la temática. Cualquiera puede. El cuerpo
+  // trae { participants: [usernames] } (elegidos a mano). Si el wipe
+  // aún no tiene sustantivo (o el que hay es de la versión antigua),
+  // se sortea uno nuevo y se anuncia en el tablón. Si ya lo tiene, se
+  // conserva el sustantivo y solo se ajustan los participantes:
+  // se mantienen los adjetivos de quienes siguen, se quitan los que
+  // salen y se sortea adjetivo nuevo (distinto) para los que entran.
   if ((m = pathname.match(/^\/api\/wipes\/([^/]+)\/theme$/)) && method === 'POST') {
     if (!requireAuth()) return;
+    let body;
+    try { body = await readBody(req); } catch (e) { return sendJSON(res, 400, { error: 'Petición inválida.' }); }
     const wipeIdVal = decodeURIComponent(m[1]);
-    const existing = await db.select('wipe_themes', `select=*&wipe_id=eq.${encodeURIComponent(wipeIdVal)}`);
-    if (existing && existing[0]) {
-      return sendJSON(res, 200, { theme: rowToTheme(existing[0]), existed: true });
+
+    // Validamos que los participantes existan de verdad.
+    const requested = Array.isArray(body.participants) ? body.participants.map(String) : [];
+    const everyone = await allUsers();
+    const validSet = new Set(everyone.map(u => u.username));
+    const participants = Array.from(new Set(requested.filter(u => validSet.has(u))));
+    if (!participants.length) return sendJSON(res, 400, { error: 'Marca al menos a una persona para el sorteo.' });
+
+    const existingRows = await db.select('wipe_themes', `select=*&wipe_id=eq.${encodeURIComponent(wipeIdVal)}`);
+    const existing = existingRows && existingRows[0] ? existingRows[0] : null;
+    const isNewStyle = existing && NOUN_GENDER[String(existing.word).toLowerCase()] !== undefined;
+
+    let word, gender, freshNoun = false;
+    if (isNewStyle) {
+      word = existing.word;
+      gender = NOUN_GENDER[word.toLowerCase()] || 'm';
+    } else {
+      const noun = await pickNoun(existing ? existing.word : null);
+      word = noun.w; gender = noun.g; freshNoun = true;
+      await db.upsert('wipe_themes', { wipe_id: wipeIdVal, word, generated_by: user.username, ts: Date.now() }, 'wipe_id');
+      // Limpiamos cualquier adjetivo heredado de la versión antigua.
+      await db.remove('wipe_theme_parts', `wipe_id=eq.${encodeURIComponent(wipeIdVal)}`);
     }
-    const word = await pickThemeWord();
-    let rows;
-    try {
-      rows = await db.insert('wipe_themes', {
-        wipe_id: wipeIdVal, word, generated_by: user.username, ts: Date.now()
+
+    // Estado actual de adjetivos (vacío si acabamos de crear el sustantivo).
+    const partRows = freshNoun ? [] : await db.select('wipe_theme_parts', `select=*&wipe_id=eq.${encodeURIComponent(wipeIdVal)}`);
+    const current = {};
+    (partRows || []).forEach(r => { current[r.username] = r.adjective; });
+
+    // Quitamos a quienes ya no están seleccionados.
+    for (const uname of Object.keys(current)) {
+      if (participants.indexOf(uname) === -1) {
+        await db.remove('wipe_theme_parts', `wipe_id=eq.${encodeURIComponent(wipeIdVal)}&username=eq.${encodeURIComponent(uname)}`);
+        delete current[uname];
+      }
+    }
+
+    // Adjetivo nuevo (distinto de los que ya hay) para los que entran.
+    const staying = participants.filter(u => current[u]);
+    const toAdd = participants.filter(u => !current[u]);
+    const usedStrings = staying.map(u => current[u]);
+    if (toAdd.length) {
+      const newAdjs = pickAdjStrings(toAdd.length, gender, usedStrings);
+      const rowsIns = toAdd.map((u, i) => ({
+        wipe_id: wipeIdVal, username: u,
+        adjective: newAdjs[i] || 'misterioso', ts: Date.now() + i
+      }));
+      await db.insert('wipe_theme_parts', rowsIns);
+    }
+
+    if (freshNoun) {
+      await db.insert('board_notes', {
+        username: user.username,
+        text: `🎭 Temática del próximo wipe sorteada: «${word.toUpperCase()}». Cada uno con su propio adjetivo. ¡A currarse el disfraz, minions!`,
+        ts: Date.now()
       });
-    } catch (e) {
-      // Dos personas han pulsado a la vez: gana la primera inserción
-      // (wipe_id es clave primaria) y devolvemos esa palabra.
-      const again = await db.select('wipe_themes', `select=*&wipe_id=eq.${encodeURIComponent(wipeIdVal)}`);
-      if (again && again[0]) return sendJSON(res, 200, { theme: rowToTheme(again[0]), existed: true });
-      throw e;
     }
-    // Lo anunciamos en el tablón para que se entere toda la Zerg.
-    await db.insert('board_notes', {
-      username: user.username,
-      text: `🎭 Temática del próximo wipe revelada: «${word.toUpperCase()}». ¡A adaptar los perfiles, minions!`,
-      ts: Date.now()
-    });
-    return sendJSON(res, 201, { theme: rowToTheme(rows[0]) });
+
+    const theme = await buildTheme(wipeIdVal);
+    return sendJSON(res, freshNoun ? 201 : 200, { theme, created: freshNoun });
   }
 
-  // Volver a tirar la temática (solo Gru): sale una palabra distinta.
+  // Volver a tirar TODO (cualquiera): sustantivo nuevo + adjetivo
+  // nuevo para todos los participantes actuales.
   if ((m = pathname.match(/^\/api\/wipes\/([^/]+)\/theme\/reroll$/)) && method === 'POST') {
-    if (!requireGru()) return;
+    if (!requireAuth()) return;
     const wipeIdVal = decodeURIComponent(m[1]);
-    const existing = await db.select('wipe_themes', `select=*&wipe_id=eq.${encodeURIComponent(wipeIdVal)}`);
-    if (!existing || !existing[0]) {
-      return sendJSON(res, 404, { error: 'Ese wipe todavía no tiene temática. Revélala primero.' });
+    const existingRows = await db.select('wipe_themes', `select=*&wipe_id=eq.${encodeURIComponent(wipeIdVal)}`);
+    if (!existingRows || !existingRows[0]) {
+      return sendJSON(res, 404, { error: 'Ese wipe todavía no tiene temática. Sortéala primero.' });
     }
-    const word = await pickThemeWord(existing[0].word);
-    const rows = await db.update('wipe_themes', `wipe_id=eq.${encodeURIComponent(wipeIdVal)}`, {
-      word, generated_by: user.username, ts: Date.now()
+    const partRows = await db.select('wipe_theme_parts', `select=*&wipe_id=eq.${encodeURIComponent(wipeIdVal)}&order=ts.asc`);
+    const participants = (partRows || []).map(r => r.username);
+    if (!participants.length) {
+      return sendJSON(res, 409, { error: 'No hay nadie en el sorteo. Añade participantes antes de volver a tirar.' });
+    }
+    const noun = await pickNoun(existingRows[0].word);
+    await db.update('wipe_themes', `wipe_id=eq.${encodeURIComponent(wipeIdVal)}`, {
+      word: noun.w, generated_by: user.username, ts: Date.now()
     });
+    await db.remove('wipe_theme_parts', `wipe_id=eq.${encodeURIComponent(wipeIdVal)}`);
+    const adjs = pickAdjStrings(participants.length, noun.g, []);
+    const rowsIns = participants.map((u, i) => ({
+      wipe_id: wipeIdVal, username: u, adjective: adjs[i] || 'misterioso', ts: Date.now() + i
+    }));
+    await db.insert('wipe_theme_parts', rowsIns);
     await db.insert('board_notes', {
       username: user.username,
-      text: `🎭 Gru ha vuelto a tirar la temática del próximo wipe: ahora es «${word.toUpperCase()}». Lo anterior queda anulado.`,
+      text: `🎭 Nueva temática sorteada para el próximo wipe: «${noun.w.toUpperCase()}». Adjetivos repartidos de nuevo. ¡A por el disfraz!`,
       ts: Date.now()
     });
-    return sendJSON(res, 200, { theme: rowToTheme(rows[0]) });
+    const theme = await buildTheme(wipeIdVal);
+    return sendJSON(res, 200, { theme });
+  }
+
+  // Re-tirar solo el adjetivo de UNA persona (cualquiera), sin tocar
+  // el sustantivo ni a los demás. Sale distinto y no repite con nadie.
+  if ((m = pathname.match(/^\/api\/wipes\/([^/]+)\/theme\/reroll-one$/)) && method === 'POST') {
+    if (!requireAuth()) return;
+    let body;
+    try { body = await readBody(req); } catch (e) { return sendJSON(res, 400, { error: 'Petición inválida.' }); }
+    const wipeIdVal = decodeURIComponent(m[1]);
+    const targetUsername = String(body.username || '').trim();
+    if (!targetUsername) return sendJSON(res, 400, { error: 'Falta la persona.' });
+    const existingRows = await db.select('wipe_themes', `select=*&wipe_id=eq.${encodeURIComponent(wipeIdVal)}`);
+    if (!existingRows || !existingRows[0]) return sendJSON(res, 404, { error: 'Ese wipe todavía no tiene temática.' });
+    const gender = NOUN_GENDER[String(existingRows[0].word).toLowerCase()] || 'm';
+    const partRows = await db.select('wipe_theme_parts', `select=*&wipe_id=eq.${encodeURIComponent(wipeIdVal)}`);
+    const mine = (partRows || []).find(r => r.username === targetUsername);
+    if (!mine) return sendJSON(res, 404, { error: 'Esa persona no está en el sorteo.' });
+    const others = (partRows || []).filter(r => r.username !== targetUsername).map(r => r.adjective);
+    // Excluimos el suyo actual para forzar que cambie, y los de los demás.
+    let picked = pickAdjStrings(1, gender, others.concat([mine.adjective]));
+    if (!picked.length) picked = pickAdjStrings(1, gender, others); // por si se agotara
+    const newAdj = picked[0] || mine.adjective;
+    await db.update('wipe_theme_parts', `wipe_id=eq.${encodeURIComponent(wipeIdVal)}&username=eq.${encodeURIComponent(targetUsername)}`, {
+      adjective: newAdj, ts: Date.now()
+    });
+    const theme = await buildTheme(wipeIdVal);
+    return sendJSON(res, 200, { theme });
   }
 
   // ---- AMONESTACIONES Y MÉRITOS (puntos por wipe) ----
