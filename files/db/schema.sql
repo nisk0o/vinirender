@@ -200,16 +200,35 @@ create unique index if not exists base_draft_votes_idx
 -- ============================================================
 -- TEMÁTICA DEL WIPE 🎭
 -- ============================================================
--- Una palabra (sustantivo) por wipe, compartida por toda la Zerg:
--- la primera persona que pulsa el botón la genera y queda guardada;
--- solo Gru puede volver a tirar. A partir de ella todos adaptan
--- sus perfiles para ese wipe.
+-- Dos partes por wipe:
+--  1) un SUSTANTIVO compartido por toda la Zerg (wipe_themes.word),
+--     que marca la temática general (ej. "pirata").
+--  2) un ADJETIVO distinto para cada participante elegido a mano
+--     (tabla wipe_theme_parts), que personaliza el perfil de cada
+--     uno (ej. "pirata oxidado", "pirata radiactivo"...).
+-- Cualquiera puede sortear y volver a tirar; también se puede
+-- re-tirar el adjetivo de una sola persona.
 create table if not exists wipe_themes (
   wipe_id      text primary key,
   word         text not null,
   generated_by text,
   ts           bigint not null
 );
+
+-- Un adjetivo por participante y wipe. El adjetivo se guarda ya
+-- concordado en género con el sustantivo (ej. "oxidada" si el
+-- sustantivo es femenino), así el frontend solo tiene que mostrarlo.
+create table if not exists wipe_theme_parts (
+  id        bigint generated always as identity primary key,
+  wipe_id   text not null,
+  username  text not null references users(username) on delete cascade,
+  adjective text not null,
+  ts        bigint not null
+);
+
+-- Un solo adjetivo por persona en cada wipe.
+create unique index if not exists wipe_theme_parts_idx
+  on wipe_theme_parts (wipe_id, username);
 
 -- Row Level Security: la app solo habla con Supabase desde el
 -- backend Node usando la service_role key, que se salta RLS por
@@ -232,3 +251,4 @@ alter table base_drafts  enable row level security;
 alter table base_draft_candidates enable row level security;
 alter table base_draft_votes      enable row level security;
 alter table wipe_themes  enable row level security;
+alter table wipe_theme_parts enable row level security;
