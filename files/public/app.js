@@ -2087,19 +2087,24 @@ function renderWipes() {
 }
 
 /* ============================================================
-   TEMÁTICA DEL PRÓXIMO WIPE 🎭 — una palabra compartida por
-   toda la Zerg a partir de la cual se adaptan los perfiles.
-   La genera el servidor la primera vez que alguien pulsa;
-   solo Gru puede volver a tirar.
+   TEMÁTICA DEL PRÓXIMO WIPE 🎭
+   Dos partes:
+     · un SUSTANTIVO (personaje/disfraz) compartido por toda la Zerg,
+     · un ADJETIVO distinto para cada participante elegido a mano.
+   Cualquiera sortea, re-tira todo o re-tira el adjetivo de una
+   sola persona. Los participantes se eligen con chips (manual).
    ============================================================ */
-var wipeTheme = null;     // {wipeId, word, generatedBy, ts} | null
-var themeWipeRef = null;  // wipe al que aplica la temática
+var wipeTheme = null;          // {wipeId, word, generatedBy, ts, parts:[{username,adjective}]} | null
+var themeWipeRef = null;       // wipe al que aplica la temática
 var themeSpinning = false;
+var themeParticipants = null;  // {username: bool} — selección manual
 
-// Palabras señuelo SOLO para la animación de ruleta (la palabra
-// real siempre la decide el servidor).
-var THEME_DECOYS = ['botijo', 'ornitorrinco', 'matasuegras', 'zigurat', 'ajolote', 'polisón',
-  'deshollinador', 'catoblepas', 'bacinilla', 'zanfona', 'tragasables', 'okapi', 'chirimbolo', 'faquir'];
+// Sustantivos señuelo SOLO para la animación de ruleta (el real
+// siempre lo decide el servidor).
+var THEME_DECOYS = ['pirata', 'vikingo', 'robot', 'zombi', 'payaso', 'astronauta', 'momia',
+  'sirena', 'tiburón', 'gladiador', 'vampiro', 'mago', 'bufón', 'dragón', 'ninja', 'faraón'];
+
+function themeCap(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
 
 // El "próximo wipe": el primero que empieza hoy o más adelante.
 function nextWipeForTheme() {
@@ -2116,6 +2121,27 @@ function nextWipeForTheme() {
   return null;
 }
 
+// Inicializa la selección de participantes. Por defecto marca a los
+// apuntados a ese wipe (si hay); si no, a todos. Siempre editable.
+function initThemeParticipants(force) {
+  if (themeParticipants && !force) {
+    USERS.forEach(function(u){ if (!(u.username in themeParticipants)) themeParticipants[u.username] = false; });
+    return;
+  }
+  themeParticipants = {};
+  var pre = themeWipeRef ? signedUpUsers(themeWipeRef.id) : [];
+  var preSet = {};
+  pre.forEach(function(u){ preSet[u] = true; });
+  USERS.forEach(function(u){
+    themeParticipants[u.username] = pre.length ? !!preSet[u.username] : true;
+  });
+}
+
+function selectedThemeParticipants() {
+  if (!themeParticipants) return [];
+  return USERS.filter(function(u){ return themeParticipants[u.username]; }).map(function(u){ return u.username; });
+}
+
 async function fetchWipeTheme() {
   themeWipeRef = nextWipeForTheme();
   wipeTheme = null;
@@ -2123,7 +2149,21 @@ async function fetchWipeTheme() {
   try {
     var data = await api('/wipes/' + encodeURIComponent(themeWipeRef.id) + '/theme');
     wipeTheme = data.theme;
-  } catch (e) { /* sin temática por ahora; el panel mostrará el botón */ }
+  } catch (e) { /* sin temática por ahora; el panel mostrará el sorteo */ }
+  syncParticipantsFromTheme();
+}
+
+// Deja la selección de chips en sintonía con lo que hay en el servidor:
+// si ya hay temática con participantes, se marcan esos; si no, defaults.
+function syncParticipantsFromTheme() {
+  if (wipeTheme && wipeTheme.parts && wipeTheme.parts.length) {
+    themeParticipants = {};
+    var inSet = {};
+    wipeTheme.parts.forEach(function(p){ inSet[p.username] = true; });
+    USERS.forEach(function(u){ themeParticipants[u.username] = !!inSet[u.username]; });
+  } else {
+    initThemeParticipants(true);
+  }
 }
 
 function themeWipeTag() {
@@ -2153,28 +2193,99 @@ function finishThemeCard(card) {
   card.appendChild(confetti);
 }
 
+// Fila de chips con cada miembro para elegir a mano quién entra en
+// el sorteo. onToggle(username) se llama al pulsar cada chip.
+function buildThemeRoster(label, onToggle, onQuick) {
+  var box = document.createElement('div');
+  box.className = 'theme-roster';
+
+  var lbl = document.createElement('div');
+  lbl.className = 'theme-roster-label';
+  lbl.textContent = label;
+  box.appendChild(lbl);
+
+  var chips = document.createElement('div');
+  chips.className = 'theme-roster-chips';
+  USERS.slice().sort(function(a,b){ return a.alias.localeCompare(b.alias); }).forEach(function(u){
+    var chip = document.createElement('button');
+    chip.type = 'button';
+    var on = !!(themeParticipants && themeParticipants[u.username]);
+    chip.className = 'theme-chip' + (on ? ' active' : '');
+    chip.textContent = u.alias;
+    chip.setAttribute('aria-pressed', on ? 'true' : 'false');
+    chip.disabled = themeSpinning;
+    chip.addEventListener('click', function(){ onToggle(u.username, chip); });
+    chips.appendChild(chip);
+  });
+  box.appendChild(chips);
+
+  var foot = document.createElement('div');
+  foot.className = 'theme-roster-foot';
+  var quick = document.createElement('div');
+  quick.className = 'theme-quick';
+  ['Todos', 'Ninguno'].forEach(function(txt){
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'theme-quick-btn';
+    b.textContent = txt;
+    b.disabled = themeSpinning;
+    b.addEventListener('click', function(){ onQuick(txt === 'Todos'); });
+    quick.appendChild(b);
+  });
+  foot.appendChild(quick);
+  var count = document.createElement('span');
+  count.className = 'theme-count';
+  var n = selectedThemeParticipants().length;
+  count.textContent = n + (n === 1 ? ' participante' : ' participantes');
+  foot.appendChild(count);
+  box.appendChild(foot);
+
+  return box;
+}
+
 function renderWipeTheme() {
   var panel = document.getElementById('theme-panel');
   if (!panel) return;
   panel.innerHTML = '';
   if (!themeWipeRef) return;
 
+  var hasTheme = wipeTheme && wipeTheme.parts && wipeTheme.parts.length;
   var card = buildThemeCardShell();
 
-  if (!wipeTheme) {
+  if (!hasTheme) {
+    // ---- Vista de SORTEO (aún sin temática) ----
     var hint = document.createElement('p');
     hint.className = 'theme-hint';
-    hint.textContent = 'Pulsa y el destino dirá UNA palabra. Toda la Zerg adaptará su perfil a esa temática para el próximo wipe. La palabra se guarda: todos veréis la misma.';
+    hint.textContent = 'Elige quién entra en el sorteo. Saldrá UN sustantivo para toda la Zerg (la temática general) y un adjetivo distinto para cada uno, con el que personalizar su perfil.';
     card.appendChild(hint);
+
+    card.appendChild(buildThemeRoster('👥 ¿Quién entra en el sorteo?',
+      function(username, chip){
+        themeParticipants[username] = !themeParticipants[username];
+        chip.classList.toggle('active', themeParticipants[username]);
+        chip.setAttribute('aria-pressed', themeParticipants[username] ? 'true' : 'false');
+        renderWipeTheme();
+      },
+      function(all){
+        USERS.forEach(function(u){ themeParticipants[u.username] = all; });
+        renderWipeTheme();
+      }
+    ));
 
     var btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'btn';
-    btn.textContent = '🎭 Revelar temática';
-    btn.disabled = themeSpinning;
-    btn.addEventListener('click', revealWipeTheme);
+    btn.className = 'btn theme-sortear-btn';
+    btn.textContent = '🎭 Sortear temática';
+    btn.disabled = themeSpinning || selectedThemeParticipants().length < 1;
+    btn.addEventListener('click', sortearTheme);
     card.appendChild(btn);
   } else {
+    // ---- Vista de RESULTADOS ----
+    var genLabel = document.createElement('div');
+    genLabel.className = 'theme-general-label';
+    genLabel.textContent = 'Temática general de la Zerg';
+    card.appendChild(genLabel);
+
     var word = document.createElement('div');
     word.className = 'theme-word is-revealed';
     word.textContent = wipeTheme.word;
@@ -2183,33 +2294,90 @@ function renderWipeTheme() {
     var meta = document.createElement('div');
     meta.className = 'theme-meta';
     var gen = userByUsername(wipeTheme.generatedBy);
-    meta.textContent = 'revelada por ' + (gen ? gen.alias : (wipeTheme.generatedBy || '¿?')) +
-      ' · adapta tu perfil a la temática';
+    meta.textContent = 'sorteada por ' + (gen ? gen.alias : (wipeTheme.generatedBy || '¿?'));
     card.appendChild(meta);
 
-    if (currentUser && isGru(currentUser)) {
-      var reroll = document.createElement('button');
-      reroll.type = 'button';
-      reroll.className = 'theme-reroll';
-      reroll.textContent = '↻ Volver a tirar (solo Gru)';
-      reroll.disabled = themeSpinning;
-      reroll.addEventListener('click', rerollWipeTheme);
-      card.appendChild(reroll);
-    }
+    // Lista: cada participante con su adjetivo y su combo completo.
+    var parts = document.createElement('div');
+    parts.className = 'theme-parts';
+    var sorted = wipeTheme.parts.slice().sort(function(a, b){
+      var ua = userByUsername(a.username), ub = userByUsername(b.username);
+      return (ua ? ua.alias : a.username).localeCompare(ub ? ub.alias : b.username);
+    });
+    sorted.forEach(function(p){
+      var u = userByUsername(p.username);
+      var isMine = currentUser && p.username === currentUser.username;
+      var row = document.createElement('div');
+      row.className = 'theme-part' + (isMine ? ' is-me' : '');
+
+      row.appendChild(makeMiniAvatar(u));
+
+      var info = document.createElement('div');
+      info.className = 'theme-part-info';
+      var nm = document.createElement('div');
+      nm.className = 'theme-part-name';
+      nm.textContent = u ? u.alias : p.username;
+      var combo = document.createElement('div');
+      combo.className = 'theme-part-combo';
+      combo.appendChild(document.createTextNode(themeCap(wipeTheme.word) + ' '));
+      var adj = document.createElement('span');
+      adj.className = 'theme-part-adj';
+      adj.textContent = p.adjective;
+      combo.appendChild(adj);
+      info.appendChild(nm);
+      info.appendChild(combo);
+      row.appendChild(info);
+
+      var dice = document.createElement('button');
+      dice.type = 'button';
+      dice.className = 'theme-part-reroll';
+      dice.textContent = '🎲';
+      dice.title = 'Volver a tirar el adjetivo de ' + (u ? u.alias : p.username);
+      dice.disabled = themeSpinning;
+      dice.addEventListener('click', function(){ rerollThemeOne(p.username); });
+      row.appendChild(dice);
+
+      parts.appendChild(row);
+    });
+    card.appendChild(parts);
+
+    // Editor de participantes (añadir / quitar a mano).
+    card.appendChild(buildThemeRoster('👥 Participantes del sorteo (toca para añadir o quitar)',
+      function(username){
+        themeParticipants[username] = !themeParticipants[username];
+        syncThemeParticipants();
+      },
+      function(all){
+        USERS.forEach(function(u){ themeParticipants[u.username] = all; });
+        syncThemeParticipants();
+      }
+    ));
+
+    var reroll = document.createElement('button');
+    reroll.type = 'button';
+    reroll.className = 'theme-reroll';
+    reroll.textContent = '↻ Volver a tirar todo (sustantivo + adjetivos)';
+    reroll.disabled = themeSpinning;
+    reroll.addEventListener('click', rerollThemeAll);
+    card.appendChild(reroll);
   }
 
   finishThemeCard(card);
   panel.appendChild(card);
 }
 
-// Animación de ruleta: palabras señuelo pasando rápido mientras el
-// servidor decide; al terminar aparece la real con confeti. 🎉
+// Animación de ruleta del sustantivo mientras el servidor decide;
+// al terminar aparece el real con confeti. 🎉
 function runThemeSpin(promise) {
   themeSpinning = true;
   var panel = document.getElementById('theme-panel');
   if (panel) {
     panel.innerHTML = '';
     var card = buildThemeCardShell();
+    var genLabel = document.createElement('div');
+    genLabel.className = 'theme-general-label';
+    genLabel.textContent = 'Sorteando temática…';
+    card.appendChild(genLabel);
     var word = document.createElement('div');
     word.className = 'theme-word is-spinning';
     word.id = 'theme-spin-word';
@@ -2230,7 +2398,7 @@ function runThemeSpin(promise) {
   Promise.all([promise, minSpin]).then(function(results){
     clearInterval(interval);
     themeSpinning = false;
-    if (results[0]) wipeTheme = results[0];
+    if (results[0]) { wipeTheme = results[0]; syncParticipantsFromTheme(); }
     renderWipeTheme();
     burstConfetti(document.getElementById('theme-confetti'), '#ffd400');
   }).catch(function(err){
@@ -2241,28 +2409,57 @@ function runThemeSpin(promise) {
   });
 }
 
-function revealWipeTheme() {
+function sortearTheme() {
   if (!themeWipeRef || themeSpinning) return;
+  var sel = selectedThemeParticipants();
+  if (!sel.length) { showToast('Marca al menos a una persona para el sorteo.'); return; }
   runThemeSpin(
-    api('/wipes/' + encodeURIComponent(themeWipeRef.id) + '/theme', { method: 'POST' })
+    api('/wipes/' + encodeURIComponent(themeWipeRef.id) + '/theme', { method: 'POST', body: { participants: sel } })
       .then(function(data){
-        // La revelación deja aviso en el tablón: lo refrescamos.
         fetchBoard().then(renderBoard).catch(function(){});
         return data.theme;
       })
   );
 }
 
-function rerollWipeTheme() {
-  if (!themeWipeRef || themeSpinning || !wipeTheme) return;
-  if (!window.confirm('¿Seguro, Gru? La palabra actual («' + wipeTheme.word + '») quedará anulada y el destino dirá otra.')) return;
+function rerollThemeAll() {
+  if (!themeWipeRef || themeSpinning) return;
+  if (!window.confirm('¿Volver a tirar TODO? Cambiará el sustantivo y el adjetivo de todos los participantes.')) return;
   runThemeSpin(
-    api('/wipes/' + encodeURIComponent(themeWipeRef.id) + '/theme/reroll', { method: 'POST' })
+    api('/wipes/' + encodeURIComponent(themeWipeRef.id) + '/theme/reroll', { method: 'POST', body: {} })
       .then(function(data){
         fetchBoard().then(renderBoard).catch(function(){});
         return data.theme;
       })
   );
+}
+
+async function rerollThemeOne(username) {
+  if (!themeWipeRef || themeSpinning) return;
+  try {
+    var data = await api('/wipes/' + encodeURIComponent(themeWipeRef.id) + '/theme/reroll-one', { method: 'POST', body: { username: username } });
+    wipeTheme = data.theme;
+    syncParticipantsFromTheme();
+    renderWipeTheme();
+    burstConfetti(document.getElementById('theme-confetti'), '#ffd400');
+  } catch (e) { showToast(e.message); }
+}
+
+// Añadir/quitar participantes en caliente (mantiene los adjetivos de
+// los que siguen, sortea uno nuevo a los que entran).
+async function syncThemeParticipants() {
+  if (!themeWipeRef || themeSpinning) return;
+  var sel = selectedThemeParticipants();
+  try {
+    var data = await api('/wipes/' + encodeURIComponent(themeWipeRef.id) + '/theme', { method: 'POST', body: { participants: sel } });
+    wipeTheme = data.theme;
+    syncParticipantsFromTheme();
+    renderWipeTheme();
+  } catch (e) {
+    showToast(e.message);
+    syncParticipantsFromTheme();
+    renderWipeTheme();
+  }
 }
 
 /* ============================================================
@@ -2617,27 +2814,18 @@ async function showApp(user) {
   document.querySelectorAll('.view').forEach(function(v){ v.classList.remove('active'); });
   document.getElementById('view-inicio').classList.add('active');
 
-  // Mostramos la app inmediatamente, sin esperar a los datos
+  await fetchUsers();
+  await fetchBoard();
+  await fetchWipeSignups();
+  await fetchPoints();
+  await fetchWipeTheme();
+  renderMembers();
+  renderBoard();
+  renderFaults();
+  renderWipeTheme();
+
   loginScreen.style.display = 'none';
   appShell.style.display = 'flex';
-
-  // Cargamos todo en paralelo y pintamos según va llegando.
-  // fetchUsers y fetchBoard van agrupados porque el tablón usa
-  // los avatares de USERS para pintarse.
-  var usersAndBoard = Promise.all([fetchUsers(), fetchBoard()]).then(function(){
-    renderMembers();
-    renderBoard();
-  });
-
-  await Promise.all([
-    usersAndBoard,
-    fetchWipeSignups(),
-    fetchPoints(),
-    fetchWipeTheme().then(renderWipeTheme)
-  ]);
-
-  // renderFaults necesita signups + points + users, por eso va al final
-  renderFaults();
 }
 
 function backToLogin() {
